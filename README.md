@@ -44,6 +44,13 @@ Open http://localhost:8000. Opening `index.html` directly with `file://` may blo
 - Records are saved in your browser's `localStorage`; they are not synced between browsers or devices.
 - A race is only complete after all N laps. A fast single lap can be recorded even when the full race is not completed.
 
+## Driving and stage update / 驾驶及赛道升级
+
+- **Maximum speed is 200 km/h** for all cars; boost changes acceleration but does not bypass the hard cap. Off-road surfaces reduce grip and practical top speed.
+- The three circuits have been completely redesigned with more control points: linked S-bends, sharp hairpins and fast sweeping corners, with evenly spaced track samples.
+- **C changes between chase camera and a driver's-seat cockpit view**, including an animated steering wheel, dashboard gauges and windscreen frame. The steering wheel follows steering input; no driver arms or hands are rendered.
+- Because driving physics and circuit geometry were changed, PB records now use version `mattea-rally-v2`. Previous V0.1 records remain in browser storage, but do not appear in new rankings.
+
 ## Current prototype / 当前原型
 
 - Four tunable cars: Classic GT, AWD Turbo, Drift Coupe, Dirt Buggy.
@@ -53,7 +60,7 @@ Open http://localhost:8000. Opening `index.html` directly with `file://` may blo
 - Arcade velocity-based drift, dust, camera switching, speedometer, minimap and split checkpoint prompts.
 - Low-resolution WebGL rendering enlarged with nearest-neighbor sampling for a retro pixelated look.
 
-**Prototype limitations:** Vehicle physics are intentionally arcade-style, not a full tire/suspension rigid-body simulation. The camera modes are chase and forward driver view (without a detailed cockpit). Weather effects presently alter fog/traction rather than having fully rendered rain particle systems. Best-lap ghost samples are stored for future replay support but not displayed yet. These are planned improvements, not completed features.
+**Prototype limitations:** Vehicle physics are intentionally arcade-style, not a full tire/suspension rigid-body simulation. The cockpit has a simplified low-poly dashboard rather than a fully furnished interior. Weather effects presently alter fog/traction rather than having fully rendered rain particle systems. Best-lap ghost samples are stored for future replay support but not displayed yet. These are planned improvements, not completed features.
 
 ## Project structure / 结构
 
