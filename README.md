@@ -28,8 +28,8 @@ Open http://localhost:8000. Opening `index.html` directly with `file://` may blo
 | S | Slow down, reverse / 减速、倒车 |
 | A / D | Steer / 转向 |
 | Space | Brake / 刹车 |
-| Shift | Boost / 冲刺 |
-| A / D + Space | Handbrake drift / 手刹甩尾 |
+| Shift + W | Nitro boost (consumes tank) / 氮气加速（消耗氮气） |
+| A / D + Space | Handbrake drift and rapid nitro recharge / 手刹漂移、快速补充氮气 |
 | C | Switch chase / driver camera / 切换视角 |
 | R | Restart the entire race / 重开比赛 |
 | Esc | Pause / 暂停 |
@@ -46,7 +46,7 @@ Open http://localhost:8000. Opening `index.html` directly with `file://` may blo
 
 ## Driving and stage update / 驾驶及赛道升级
 
-- **Maximum speed is 200 km/h** for all cars; boost changes acceleration but does not bypass the hard cap. Off-road surfaces reduce grip and practical top speed.
+- **Maximum speed is 200 km/h** for all cars; the finite nitro boost changes acceleration but does not bypass the hard cap. Off-road surfaces reduce grip and practical top speed.
 - The three circuits have been completely redesigned with more control points: linked S-bends, sharp hairpins and fast sweeping corners, with evenly spaced track samples.
 - **C changes between chase camera and a driver's-seat cockpit view**, including an animated steering wheel, dashboard gauges and windscreen frame. The steering wheel follows steering input; no driver arms or hands are rendered.
 - Because driving physics and circuit geometry were changed, PB records now use version `mattea-rally-v2`. Previous V0.1 records remain in browser storage, but do not appear in new rankings.
@@ -74,6 +74,16 @@ Open http://localhost:8000. Opening `index.html` directly with `file://` may blo
 - **Press F3 in-game** to see the actual loaded build version, speed, surface detection, throttle input, engine force, target speed and turning speed loss. The start menu and race HUD also display the build label.
 - If the online game still appears stuck around 90 km/h, check **BUILD V0.7** is visible; otherwise GitHub Pages or browser cache is serving an older build.
 - PB records now use `mattea-rally-v7` because handling changed; older records are retained.
+
+## V0.8 — Nitro boost and drift charging / 氮气加速系统
+
+- Nitro starts at **100%**, and a running **W + Shift** boost consumes **24% per second** (about 4.2 seconds of continuous boost).
+- While not boosting, the tank passively restores **3% per second**. **A/D + Space** handbrake drifting at sufficient speed and slip angle restores **28% per second** instead.
+- Nitro gives a higher throttle power multiplier (1.75× engine torque instead of unlimited use). The 200 km/h hard speed cap remains.
+- A depleted tank pauses boost; release Shift and recharge to at least 12% before activating again.
+- The new HUD includes a live nitro percentage, blue tank bar, charging/boosting feedback and a blue-white exhaust flame effect while boosting. Flames are attached to the original V0.2 car model.
+- The entire tank resets at each new race or restart, not every lap. Pausing freezes consumption.
+- Best times now use `mattea-rally-v8` because finite boost changes race balance; older records remain in localStorage.
 
 ## Current prototype / 当前原型
 
