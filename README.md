@@ -29,7 +29,7 @@ Open http://localhost:8000. Opening `index.html` directly with `file://` may blo
 | A / D | Steer / 转向 |
 | Space | Brake / 刹车 |
 | Shift | Boost / 冲刺 |
-| Shift + A / D | Power drift / 动力漂移 |
+| A / D + Space | Handbrake drift / 手刹甩尾 |
 | C | Switch chase / driver camera / 切换视角 |
 | R | Restart the entire race / 重开比赛 |
 | Esc | Pause / 暂停 |
@@ -56,9 +56,9 @@ Open http://localhost:8000. Opening `index.html` directly with `file://` may blo
 - Larger 3.1 m × 6.3 m low-poly rally car, with sloped glass, layered bodywork, wider fenders, rims, lights, spoiler, hood scoop and rally decals.
 - The chase camera sits closer to the body and follows the *movement vector* during a drift, making the car's sideways attitude visible.
 - Track widths: Pine Valley **26 m**, Frost Ridge **24 m**, Red Canyon **29 m**. Track layouts and checkpoint rules remain intact.
-- Nonlinear speed response: gradually decreasing available torque toward **200 km/h**, with a slower high-speed build and a hard speed limit. Shift boosts acceleration and also initiates power slides when combined with steering.
-- Drifting now simulates lateral velocity, progressive tire grip loss, a rear-axle breakaway impulse, yaw inertia and grip recovery. Different vehicles have separate drift-kick values.
-- The improved vehicle physics and wider course geometry use PB namespace `mattea-rally-v3` to prevent comparing incompatible records; older local records are not erased.
+- Nonlinear speed response: gradually decreasing available torque toward **200 km/h**, with a slower high-speed build and a hard speed limit. Shift only boosts acceleration; **A/D + Space** initiates a handbrake drift.
+- Drifting now simulates lateral velocity, progressive tire grip loss, a rear-axle breakaway impulse, yaw inertia and grip recovery. Holding Space alone brakes normally; with A/D it triggers a handbrake slide with lighter longitudinal braking. Different vehicles have separate drift-kick values.
+- The improved vehicle physics and wider course geometry use PB namespace `mattea-rally-v4` to prevent comparing incompatible records; older local records are not erased.
 
 ## Current prototype / 当前原型
 
