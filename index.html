@@ -43,7 +43,7 @@
           <div id="menu-records" class="records-preview"></div>
           <div class="menu-actions">
             <button id="start-btn" class="primary" type="button">START TIME ATTACK <span>▶</span></button>
-            <p>WASD 驾驶 · SPACE 刹车 · A/D + SPACE 手刹漂移 · SHIFT 加速 · C 视角</p>
+            <p>WASD 驾驶 · A/D + SPACE 漂移并补充氮气 · SHIFT 消耗氮气加速 · C 视角</p>
           </div>
         </div>
       </div>
@@ -79,10 +79,13 @@
         <div id="drift-indicator">GRIP</div>
         <div class="speed-value"><strong id="speed">000</strong><span>KM/H</span></div>
         <div class="speed-track"><div id="speed-bar"></div></div>
+        <div class="nitro-header"><span>NITRO <span id="nitro-mode">READY</span></span><strong id="nitro-percent">100%</strong></div>
+        <div id="nitro-shell" class="nitro-shell"><div id="nitro-bar"></div></div>
+        <div id="nitro-hint">DRIFT TO REFILL · SHIFT TO BOOST</div>
         <div id="camera-indicator">CHASE CAM</div>
       </div>
     </div>
-    <div class="hud-controls">WASD DRIVE · SPACE BRAKE · A/D + SPACE DRIFT · SHIFT BOOST · C CAMERA · R RESTART · ESC PAUSE</div>
+    <div class="hud-controls">WASD DRIVE · A/D + SPACE DRIFT / CHARGE · SHIFT NITRO · C CAMERA · R RESTART · ESC PAUSE</div>
   </div>
 
   <section id="pause" class="overlay dialog-overlay hidden">
