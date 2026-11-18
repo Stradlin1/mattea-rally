@@ -1,19 +1,19 @@
 import * as THREE from 'three';
+import { TRACKS } from './tracks.js';
+import { createCockpit } from './cockpit.js';
 
 const $ = (id) => document.getElementById(id);
 const clamp = (v,a,b) => Math.max(a,Math.min(b,v));
 const lerp = (a,b,t) => a+(b-a)*t;
 const TAU = Math.PI*2;
+const MAX_SPEED_KMH = 200;
+const MAX_SPEED_MS = MAX_SPEED_KMH / 3.6;
+const RECORD_VERSION = 'mattea-rally-v2';
 const CARS = [
-  {id:'classic',name:'CLASSIC GT',detail:'平衡 · 经典拉力',color:0xe45b45,accel:19,max:43,grip:6.8,steer:1.00,drift:.48},
-  {id:'awd',name:'AWD TURBO',detail:'四驱 · 强抓地力',color:0x4d95d4,accel:23,max:46,grip:8.7,steer:.92,drift:.30},
-  {id:'rwd',name:'DRIFT COUPE',detail:'后驱 · 灵活甩尾',color:0xe9be5a,accel:25,max:48,grip:6.0,steer:1.15,drift:.66},
-  {id:'buggy',name:'DIRT BUGGY',detail:'越野 · 复杂地形',color:0x7bd19a,accel:21,max:41,grip:7.0,steer:.97,drift:.54}
-];
-const TRACKS = [
-  {id:'pine',name:'PINE VALLEY',detail:'森林 · 起伏砂石路',seed:1,road:0x9f8062,field:0x516f4c,sky:0x9ab8c7,width:19,points:[[-144,-26],[-139,-119],[-60,-168],[40,-159],[121,-111],[159,-36],[117,35],[127,119],[50,160],[-40,138],[-78,84],[-147,72]]},
-  {id:'snow',name:'FROST RIDGE',detail:'雪山 · 密集发卡弯',seed:2,road:0x86959c,field:0xc0cad0,sky:0x96abc3,width:17,points:[[-150,-83],[-95,-150],[7,-150],[83,-134],[150,-82],[100,-40],[47,-80],[-7,-27],[69,23],[155,57],[117,142],[17,158],[-50,120],[-135,123],[-160,24],[-75,4]]},
-  {id:'desert',name:'RED CANYON',detail:'峡谷 · 高速长弯',seed:3,road:0xc28d5a,field:0xad7750,sky:0xe2b28b,width:20,points:[[-170,-70],[-91,-133],[0,-152],[130,-126],[168,-53],[108,0],[158,90],[67,164],[-46,155],[-156,94],[-120,15],[-72,-40]]}
+  {id:'classic',name:'CLASSIC GT',detail:'平衡 · 经典拉力',color:0xe45b45,accel:25,max:MAX_SPEED_MS,grip:6.8,steer:1.00,drift:.48},
+  {id:'awd',name:'AWD TURBO',detail:'四驱 · 强抓地力',color:0x4d95d4,accel:29,max:MAX_SPEED_MS,grip:8.7,steer:.92,drift:.30},
+  {id:'rwd',name:'DRIFT COUPE',detail:'后驱 · 灵活甩尾',color:0xe9be5a,accel:31,max:MAX_SPEED_MS,grip:6.0,steer:1.15,drift:.66},
+  {id:'buggy',name:'DIRT BUGGY',detail:'越野 · 复杂地形',color:0x7bd19a,accel:27,max:MAX_SPEED_MS,grip:7.0,steer:.97,drift:.54}
 ];
 const WEATHER = [
   {id:'clear',name:'晴天',grip:1,fog:1},
@@ -31,6 +31,8 @@ renderer.shadowMap.enabled=false;
 const scene=new THREE.Scene();
 scene.background=new THREE.Color(0x91a8ac);
 const camera=new THREE.PerspectiveCamera(68,16/9,.1,900);
+scene.add(camera);
+const cockpitView=createCockpit(camera);
 const hemi=new THREE.HemisphereLight(0xd9ecff,0x536049,2.3);scene.add(hemi);
 const sun=new THREE.DirectionalLight(0xffe4bc,2.0);sun.position.set(-100,180,90);scene.add(sun);
 const world=new THREE.Group();scene.add(world);
@@ -43,7 +45,7 @@ const tmpVec=new THREE.Vector3();
 const mctx=$('minimap').getContext('2d');
 
 function recordKey(type,withLaps=false){
-  const parts=['mattea-rally-v1',type,settings.track,settings.car,settings.weather];
+  const parts=[RECORD_VERSION,type,settings.track,settings.car,settings.weather];
   if(withLaps) parts.push(settings.laps);
   return parts.join(':');
 }
@@ -86,9 +88,9 @@ function hills(x,z,seed){return Math.sin(x*.011+seed)*Math.cos(z*.013-seed)*4.8+
 function terrainY(x,z){return hills(x,z,currentTrack().seed);}
 function buildCurve(){
   const tr=currentTrack();const curve=new THREE.CatmullRomCurve3(tr.points.map(([x,z])=>new THREE.Vector3(x,0,z)),true,'centripetal',.5);
-  const count=950;roadSamples=[];
+  const count=1400;roadSamples=[];
   for(let i=0;i<count;i++){
-    const t=i/count,p=curve.getPoint(t),v=curve.getTangent(t).normalize();
+    const t=i/count,p=curve.getPointAt(t),v=curve.getTangentAt(t).normalize();
     roadSamples.push({x:p.x,z:p.z,y:terrainY(p.x,p.z),tx:v.x,tz:v.z,s:i/count});
   }
   gates=[0,.25,.5,.75].map(frac=>roadSamples[Math.floor(frac*count)]);
@@ -205,6 +207,7 @@ function createWorld(){
   scene.fog=new THREE.FogExp2(tr.sky,weather.id==='fog'?.017:weather.id==='rain'?.0075:.0040);
   hemi.intensity=weather.id==='rain'?1.65:2.3;sun.intensity=weather.id==='rain'?.8:2;
   state.car={x:0,z:0,yaw:0,vx:0,vz:0,y:0,roll:0,pitch:0,turn:0};
+  cockpitView.update(0,0,currentCar().color);
   resetCar(true);updateCamera(1);renderMinimap();renderer.render(scene,camera);
 }
 function resetCar(full=false){
@@ -301,9 +304,10 @@ function updatePhysics(dt){
   const speed=Math.hypot(c.vx,c.vz);
   const turning=steering!==0&&speed>8;
   const slide=boost&&turning&&Math.abs(forward)>7;
-  const max= config.max*(boost?1.35:1)*(offroad?(config.id==='buggy'?.86:.67):1);
+  // 200 km/h hard ceiling; off-road reduces attainable speed but never creates a second, higher boost ceiling.
+  const max= Math.min(MAX_SPEED_MS,config.max)*(offroad?(config.id==='buggy'?.82:.65):1);
   if(gas&&forward<max){
-    const force=config.accel*(boost?1.44:1)*(offroad?(config.id==='buggy'?.88:.64):1)*(1-.55*clamp(Math.max(forward,0)/max,0,1));
+    const force=config.accel*(boost?1.70:1)*(offroad?(config.id==='buggy'?.88:.64):1)*(1-.22*clamp(Math.max(forward,0)/max,0,1));
     c.vx+=fx*force*dt;c.vz+=fz*force*dt;
   }
   if(reverse){
@@ -322,8 +326,10 @@ function updatePhysics(dt){
   const effectiveGrip=config.grip*grip*(slide?config.drift:.98);
   const damp=1-Math.exp(-effectiveGrip*dt);
   c.vx-=rx*lat*damp;c.vz-=rz*lat*damp;
-  const drag=Math.min(.12,dt*(.31+speed*.022+(offroad?.46:0)+(brake?.65:0)));
+  const drag=Math.min(.12,dt*(.12+speed*.004+(offroad?.8:0)+(brake?.65:0)));
   c.vx*=1-drag;c.vz*=1-drag;
+  const actualSpeed=Math.hypot(c.vx,c.vz);
+  if(actualSpeed>max){const ratio=max/actualSpeed;c.vx*=ratio;c.vz*=ratio;}
   if(Math.hypot(c.vx,c.vz)<.08&&!gas&&!reverse){c.vx=0;c.vz=0;}
   const oldx=c.x,oldz=c.z;
   const nx=c.x+c.vx*dt,nz=c.z+c.vz*dt;
@@ -337,6 +343,8 @@ function updatePhysics(dt){
   c.pitch=lerp(c.pitch,Math.atan2(yFront-yBack,4),clamp(dt*5,0,1));
   c.y=terrainY(c.x,c.z);
   syncCarModel();
+  // The wheel is driven by the same smoothed steering demand used by the car.
+  cockpitView.update(c.turn*config.steer*(.39/(1+state.speed*.0016)),state.speed,config.color);
   if(state.drift&&Math.random()<dt*45)spawnDust(c.x-newFx*2,c.z-newFz*2,c.y,offroad);
   state.elapsed+=dt;
   if(state.elapsed-state.lastSample>.075){state.ghostSamples.push({t:state.elapsed-state.lapStart,x:c.x,z:c.z,yaw:c.yaw});state.lastSample=state.elapsed;}
@@ -360,16 +368,28 @@ function updateDust(dt){
 function updateCamera(dt){
   const c=state.car;if(!c)return;
   const fx=-Math.sin(c.yaw),fz=-Math.cos(c.yaw),y=terrainY(c.x,c.z);
-  const cockpit=state.camMode===1;
-  const desired=new THREE.Vector3(c.x-fx*(cockpit?1.1:12),y+(cockpit?2.15:6.6),c.z-fz*(cockpit?1.1:12));
-  if(cockpit)desired.set(c.x+fx*.75,y+2.15,c.z+fz*.75);
-  if(state.mode==='menu'){desired.set(c.x+15,y+10,c.z+19);}
-  const k=clamp(dt*(cockpit?12:5),0,1);camera.position.lerp(desired,k);
-  const look=new THREE.Vector3(c.x+fx*(cockpit?30:11),y+(cockpit?2.1:1.9),c.z+fz*(cockpit?30:11));
+  const rightX=-fz,rightZ=fx;
+  const driver=state.camMode===1 && state.mode!=='menu';
+  // Driver's eye is behind the windscreen, offset to the left seat.
+  const desired=driver
+    ? new THREE.Vector3(c.x+fx*.32-rightX*.63,y+2.18,c.z+fz*.32-rightZ*.63)
+    : new THREE.Vector3(c.x-fx*13,y+7.3,c.z-fz*13);
+  if(state.mode==='menu')desired.set(c.x+15,y+10,c.z+19);
+  const k=clamp(dt*(driver?17:5),0,1);
+  camera.position.lerp(desired,k);
+  const look=new THREE.Vector3(
+    c.x+fx*(driver?40:13)-(driver?rightX*.63:0),
+    y+(driver?2.08:2.05),
+    c.z+fz*(driver?40:13)-(driver?rightZ*.63:0)
+  );
   if(state.mode==='menu')look.set(c.x,y+1.2,c.z);
-  camTarget.lerp(look,k);camera.lookAt(camTarget);
-  camera.fov=lerp(camera.fov,68+clamp(state.speed/20,0,12),clamp(dt*2,0,1));camera.updateProjectionMatrix();
-  if(carGroup)carGroup.visible=!cockpit||state.mode==='menu';
+  camTarget.lerp(look,k);
+  camera.lookAt(camTarget);
+  // Wide chase camera, slightly tighter FOV while in the driver's seat.
+  const targetFov=driver?68:68+clamp(state.speed/23,0,10);
+  camera.fov=lerp(camera.fov,targetFov,clamp(dt*2,0,1));camera.updateProjectionMatrix();
+  if(carGroup)carGroup.visible=!driver;
+  cockpitView.root.visible=driver;
 }
 function updateHud(){
   $('lap-counter').textContent=String(state.lap).padStart(2,'0')+' / '+String(settings.laps).padStart(2,'0');
@@ -378,7 +398,7 @@ function updateHud(){
   $('best-lap').textContent=formatTime(state.recordLap?.time);
   $('best-race').textContent=formatTime(state.recordRace?.time);
   $('speed').textContent=String(Math.round(state.speed)).padStart(3,'0');
-  $('speed-bar').style.width=clamp(state.speed/220*100,0,100)+'%';
+  $('speed-bar').style.width=clamp(state.speed/MAX_SPEED_KMH*100,0,100)+'%';
   $('drift-indicator').textContent=state.drift?'DRIFT  // '+Math.round(state.slip)+'°':'GRIP';
   $('surface-indicator').textContent=state.surface;
   $('camera-indicator').textContent=state.camMode===0?'CHASE CAM [C]':'DRIVER CAM [C]';
@@ -392,7 +412,7 @@ function updateHud(){
 }
 function renderMinimap(){
   if(!mctx||!roadSamples.length)return;
-  const w=220,h=220,scale=.39;
+  const w=220,h=220,scale=.355;
   mctx.clearRect(0,0,w,h);mctx.fillStyle='#091720';mctx.fillRect(0,0,w,h);
   mctx.strokeStyle='#bc9d75';mctx.lineWidth=7;mctx.beginPath();
   roadSamples.forEach((p,i)=>{const x=w/2+p.x*scale,y=h/2+p.z*scale;if(i===0)mctx.moveTo(x,y);else mctx.lineTo(x,y);});mctx.closePath();mctx.stroke();
