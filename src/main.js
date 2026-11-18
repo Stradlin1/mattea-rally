@@ -1,8 +1,6 @@
 import * as THREE from 'three';
 import { TRACKS } from './tracks.js';
 import { createCockpit } from './cockpit.js';
-import { createRallyCar } from './vehicle.js';
-import { stepVehicle, SPEED_LIMIT } from './handling.js';
 
 const $ = (id) => document.getElementById(id);
 const clamp = (v,a,b) => Math.max(a,Math.min(b,v));
@@ -10,12 +8,12 @@ const lerp = (a,b,t) => a+(b-a)*t;
 const TAU = Math.PI*2;
 const MAX_SPEED_KMH = 200;
 const MAX_SPEED_MS = MAX_SPEED_KMH / 3.6;
-const RECORD_VERSION = 'mattea-rally-v4';
+const RECORD_VERSION = 'mattea-rally-v5';
 const CARS = [
-  {id:'classic',name:'CLASSIC GT',detail:'平衡 · 经典拉力',color:0xe45b45,accel:6.7,max:MAX_SPEED_MS,grip:7.5,steer:1.00,slideKick:1.05,offroadCap:.70,offroadPower:.72},
-  {id:'awd',name:'AWD TURBO',detail:'四驱 · 强抓地力',color:0x4d95d4,accel:7.2,max:MAX_SPEED_MS,grip:8.7,steer:.93,slideKick:.82,offroadCap:.73,offroadPower:.74},
-  {id:'rwd',name:'DRIFT COUPE',detail:'后驱 · 灵活甩尾',color:0xe9be5a,accel:7.6,max:MAX_SPEED_MS,grip:6.4,steer:1.10,slideKick:1.35,offroadCap:.66,offroadPower:.69},
-  {id:'buggy',name:'DIRT BUGGY',detail:'越野 · 复杂地形',color:0x7bd19a,accel:6.9,max:MAX_SPEED_MS,grip:7.3,steer:.98,slideKick:1.10,offroadCap:.85,offroadPower:.85}
+  {id:'classic',name:'CLASSIC GT',detail:'平衡 · 经典拉力',color:0xe45b45,accel:6.7,max:MAX_SPEED_MS,grip:6.8,steer:1.00,drift:.48},
+  {id:'awd',name:'AWD TURBO',detail:'四驱 · 强抓地力',color:0x4d95d4,accel:7.2,max:MAX_SPEED_MS,grip:8.7,steer:.92,drift:.30},
+  {id:'rwd',name:'DRIFT COUPE',detail:'后驱 · 灵活甩尾',color:0xe9be5a,accel:7.6,max:MAX_SPEED_MS,grip:6.0,steer:1.15,drift:.66},
+  {id:'buggy',name:'DIRT BUGGY',detail:'越野 · 复杂地形',color:0x7bd19a,accel:6.9,max:MAX_SPEED_MS,grip:7.0,steer:.97,drift:.54}
 ];
 const WEATHER = [
   {id:'clear',name:'晴天',grip:1,fog:1},
@@ -38,7 +36,7 @@ const cockpitView=createCockpit(camera);
 const hemi=new THREE.HemisphereLight(0xd9ecff,0x536049,2.3);scene.add(hemi);
 const sun=new THREE.DirectionalLight(0xffe4bc,2.0);sun.position.set(-100,180,90);scene.add(sun);
 const world=new THREE.Group();scene.add(world);
-let vehicleVisual=null;
+const wheelMeshes=[];
 const dust=[];
 const decor=[];
 let raceTrack=null,roadSamples=[],gates=[],terrainMesh=null,roadMesh=null,carGroup=null,camTarget=new THREE.Vector3();
@@ -83,7 +81,7 @@ document.querySelectorAll('.lap-preset').forEach(b=>b.addEventListener('click',(
 $('laps-input').addEventListener('input',(event)=>{const n=Number(event.target.value);if(Number.isInteger(n)&&n>=1&&n<=99){settings.laps=n;renderMenu();}});
 function clearWorld(){
   while(world.children.length){const item=world.children[0];world.remove(item);item.traverse(obj=>{obj.geometry?.dispose();if(obj.material){const mats=Array.isArray(obj.material)?obj.material:[obj.material];mats.forEach(m=>m.dispose());}});}
-  dust.length=0;decor.length=0;vehicleVisual=null;carGroup=null;
+  dust.length=0;decor.length=0;wheelMeshes.length=0;carGroup=null;
 }
 function hash(x,z,s){const f=Math.sin(x*127.1+z*311.7+s*74.7)*43758.5453;return f-Math.floor(f);}
 function hills(x,z,seed){return Math.sin(x*.011+seed)*Math.cos(z*.013-seed)*4.8+Math.sin(x*.032+z*.016+seed)*1.65+Math.cos(z*.041-x*.027)*.8;}
@@ -183,21 +181,38 @@ function buildTerrain(){
   }
 }
 function buildCar(){
-  vehicleVisual=createRallyCar(world,currentCar());
-  carGroup=vehicleVisual.group;
+  const config=currentCar();
+  carGroup=new THREE.Group();world.add(carGroup);
+  const mat=new THREE.MeshLambertMaterial({color:config.color,flatShading:true});
+  const trim=new THREE.MeshLambertMaterial({color:0x26323e}),glass=new THREE.MeshLambertMaterial({color:0x243d52}),lights=new THREE.MeshBasicMaterial({color:0xffe0ac}),tail=new THREE.MeshBasicMaterial({color:0xe84835});
+  const body=new THREE.Mesh(new THREE.BoxGeometry(2.7,.85,5.0),mat);body.position.y=.95;carGroup.add(body);
+  const cabin=new THREE.Mesh(new THREE.BoxGeometry(2.25,.92,2.4),glass);cabin.position.set(0,1.73,-.3);carGroup.add(cabin);
+  for(const side of [-1,1]){
+    const stripe=new THREE.Mesh(new THREE.BoxGeometry(.06,.2,4.2),new THREE.MeshBasicMaterial({color:0xf2e2b8}));stripe.position.set(side*1.37,1,0);carGroup.add(stripe);
+    for(const front of [-1,1]){
+      const tire=new THREE.Mesh(new THREE.CylinderGeometry(.74,.74,.44,10),trim);
+      tire.rotation.z=Math.PI/2;tire.position.set(side*1.47,.72,front*1.55);carGroup.add(tire);wheelMeshes.push({mesh:tire,front:front===-1,side});
+    }
+  }
+  for(const side of [-1,1]){
+    const headlight=new THREE.Mesh(new THREE.BoxGeometry(.53,.2,.08),lights);headlight.position.set(side*.83,1.05,-2.53);carGroup.add(headlight);
+    const taillight=new THREE.Mesh(new THREE.BoxGeometry(.66,.22,.08),tail);taillight.position.set(side*.82,.96,2.54);carGroup.add(taillight);
+  }
+  const spoiler=new THREE.Mesh(new THREE.BoxGeometry(2.7,.16,.45),trim);spoiler.position.set(0,1.8,2.22);carGroup.add(spoiler);
+  const bumper=new THREE.Mesh(new THREE.BoxGeometry(2.55,.3,.2),trim);bumper.position.set(0,.67,-2.58);carGroup.add(bumper);
 }
 function createWorld(){
   clearWorld();buildCurve();buildTerrain();createRoad();buildCar();
   const tr=currentTrack(),weather=currentWeather();scene.background=new THREE.Color(tr.sky);
   scene.fog=new THREE.FogExp2(tr.sky,weather.id==='fog'?.017:weather.id==='rain'?.0075:.0040);
   hemi.intensity=weather.id==='rain'?1.65:2.3;sun.intensity=weather.id==='rain'?.8:2;
-  state.car={x:0,z:0,yaw:0,vx:0,vz:0,y:0,roll:0,pitch:0,turn:0,yawRate:0,driftBlend:0,driftRequested:false,slipAngle:0};
+  state.car={x:0,z:0,yaw:0,vx:0,vz:0,y:0,roll:0,pitch:0,turn:0};
   cockpitView.update(0,0,currentCar().color);
   resetCar(true);updateCamera(1);renderMinimap();renderer.render(scene,camera);
 }
 function resetCar(full=false){
   const p=roadSamples[roadSamples.length-9],c=state.car;
-  c.x=p.x;c.z=p.z;c.y=terrainY(c.x,c.z);c.yaw=Math.atan2(-p.tx,-p.tz);c.vx=0;c.vz=0;c.roll=0;c.pitch=0;c.turn=0;c.yawRate=0;c.driftBlend=0;c.driftRequested=false;c.slipAngle=0;
+  c.x=p.x;c.z=p.z;c.y=terrainY(c.x,c.z);c.yaw=Math.atan2(-p.tx,-p.tz);c.vx=0;c.vz=0;c.roll=0;c.pitch=0;c.turn=0;c.handbrakeGrip=0;
   // In this coordinate convention the car forward is local -Z.
   c.yaw=Math.atan2(-p.tx,-p.tz);
   state.drift=false;state.slip=0;state.speed=0;state.surface='GRAVEL';
@@ -206,9 +221,9 @@ function resetCar(full=false){
 }
 function syncCarModel(){
   const c=state.car;if(!c||!carGroup)return;
-  carGroup.position.set(c.x,terrainY(c.x,c.z)+.45,c.z);
+  carGroup.position.set(c.x,terrainY(c.x,c.z)+.32,c.z);
   carGroup.rotation.set(c.pitch,c.yaw,c.roll,'YXZ');
-  // Wheel steering and rolling are updated at the fixed physics timestep.
+  wheelMeshes.forEach(({mesh,front})=>{if(front)mesh.rotation.y=c.turn*.36;});
 }
 function startRace(){
   if(!Number.isInteger(settings.laps)||settings.laps<1||settings.laps>99)return;
@@ -273,51 +288,78 @@ function finishRace(newLapPB){
 }
 function collides(nx,nz){
   if(Math.abs(nx)>490||Math.abs(nz)>490)return true;
-  for(const obstacle of decor){const dx=nx-obstacle.x,dz=nz-obstacle.z;if(dx*dx+dz*dz<(obstacle.r+1.65)**2)return true;}
+  for(const obstacle of decor){const dx=nx-obstacle.x,dz=nz-obstacle.z;if(dx*dx+dz*dz<(obstacle.r+1.25)**2)return true;}
   return false;
 }
 function updatePhysics(dt){
   const c=state.car,config=currentCar(),weather=currentWeather();
-  const gas=KEY.has('KeyW'),reverse=KEY.has('KeyS'),brake=KEY.has('Space');
-  const boost=KEY.has('ShiftLeft')||KEY.has('ShiftRight');
+  const gas=KEY.has('KeyW'),reverse=KEY.has('KeyS'),brake=KEY.has('Space'),boost=KEY.has('ShiftLeft')||KEY.has('ShiftRight');
   const steering=(KEY.has('KeyA')?1:0)-(KEY.has('KeyD')?1:0);
   const near=nearestRoad(c.x,c.z),offroad=near.d>currentTrack().width*.5;
   const terrainGrip=offroad?(settings.track==='snow'?.59:settings.track==='desert'?.68:.70):1;
   const grip=terrainGrip*weather.grip;
   state.surface=offroad?(settings.track==='snow'?'SNOW FIELD':settings.track==='desert'?'SAND':'GRASS'):(settings.track==='snow'?'SNOW ROAD':settings.track==='desert'?'DESERT GRAVEL':'GRAVEL');
+  const fx=-Math.sin(c.yaw),fz=-Math.cos(c.yaw),rightX=-fz,rightZ=fx;
+  let forward=c.vx*fx+c.vz*fz,lateral=c.vx*rightX+c.vz*rightZ;
+  const speed=Math.hypot(c.vx,c.vz);
+  const turning=steering!==0&&speed>8;
+  // Handbrake only: A/D + Space. Shift never initiates a slide.
+  const slide=brake&&turning&&Math.abs(forward)>7;
+  // Keep the old weighty lateral-grip dynamics, with a short grip-release/recovery.
+  c.handbrakeGrip=lerp(c.handbrakeGrip||0,slide?1:0,clamp(dt*(slide?9:5),0,1));
+  // 200 km/h hard ceiling; off-road reduces attainable speed but never creates a second, higher boost ceiling.
+  const max= Math.min(MAX_SPEED_MS,config.max)*(offroad?(config.id==='buggy'?.82:.65):1);
+  if(gas&&forward<max){
+    // Slower, nonlinear torque: acceleration falls away progressively near 200 km/h.
+    const progress=clamp(Math.max(0,forward)/max,0,1);
+    const torque=0.035+0.965*Math.pow(Math.max(0,1-progress*progress),1.42);
+    const force=config.accel*(boost?1.23:1)*(offroad?(config.id==='buggy'?.88:.64):1)*torque;
+    c.vx+=fx*force*dt;c.vz+=fz*force*dt;
+  }
+  if(reverse){
+    if(forward>1){c.vx-=fx*22*grip*dt;c.vz-=fz*22*grip*dt;}
+    else if(forward>-13){c.vx-=fx*9*dt;c.vz-=fz*9*dt;}
+  }
+  if(brake){
+    // Space by itself stops the car. With steering, rear grip breaks away,
+    // while lighter longitudinal braking preserves momentum through the turn.
+    const deceleration=slide?5.5:26;
+    const b=Math.min(Math.abs(forward),deceleration*grip*dt)*Math.sign(forward);
+    c.vx-=fx*b;c.vz-=fz*b;
+  }
+  const speedFactor=clamp(Math.abs(forward)/13,0,1);
+  let steerAngle=steering*config.steer*(1.45/(1+speed*.027));
+  const currentYawRate=steerAngle*speedFactor*(forward<0?-1:1);
+  c.turn=lerp(c.turn,steering,clamp(dt*8,0,1));
+  c.yaw+=currentYawRate*dt*(1+.50*c.handbrakeGrip);
+  // Lateral damping gives genuine velocity/heading divergence under power-slide.
+  const newFx=-Math.sin(c.yaw),newFz=-Math.cos(c.yaw),rx=-newFz,rz=newFx;
+  const lat=c.vx*rx+c.vz*rz;
+  const effectiveGrip=config.grip*grip*lerp(.98,config.drift,c.handbrakeGrip);
+  const damp=1-Math.exp(-effectiveGrip*dt);
+  c.vx-=rx*lat*damp;c.vz-=rz*lat*damp;
+  const drag=Math.min(.12,dt*(.12+speed*.004+(offroad?.8:0)+(brake?.65:0)));
+  c.vx*=1-drag;c.vz*=1-drag;
+  const actualSpeed=Math.hypot(c.vx,c.vz);
+  if(actualSpeed>max){const ratio=max/actualSpeed;c.vx*=ratio;c.vz*=ratio;}
+  if(Math.hypot(c.vx,c.vz)<.08&&!gas&&!reverse){c.vx=0;c.vz=0;}
   const oldx=c.x,oldz=c.z;
-  const motion=stepVehicle(c,{gas,reverse,brake,boost,steer:steering},config,{grip,offroad},dt);
   const nx=c.x+c.vx*dt,nz=c.z+c.vz*dt;
-  if(collides(nx,nz)){
-    c.vx*= -.22;c.vz*= -.22;c.yawRate*=.35;
-    toast('IMPACT!',.5);
-  }else {c.x=nx;c.z=nz;}
+  if(collides(nx,nz)){c.vx*=-.18;c.vz*=-.18;toast('IMPACT!',.5);}
+  else {c.x=nx;c.z=nz;}
   state.speed=Math.hypot(c.vx,c.vz)*3.6;
-  state.slip=Math.abs(c.slipAngle);
-  state.drift=motion.drifting;
-  // Both the chassis lean and camera follow the genuine sideways motion.
-  const targetRoll=clamp(-motion.yawRate*.15-motion.lateral*.016,-.24,.24);
-  c.roll=lerp(c.roll,targetRoll,clamp(dt*4.2,0,1));
-  const fx=-Math.sin(c.yaw),fz=-Math.cos(c.yaw);
-  const yFront=terrainY(c.x+fx*2,c.z+fz*2),yBack=terrainY(c.x-fx*2,c.z-fz*2);
+  state.slip=Math.atan2(Math.abs(lat),Math.max(2,Math.abs(forward)))*180/Math.PI;
+  state.drift=(slide||state.slip>13)&&state.speed>26;
+  c.roll=lerp(c.roll,-steering*clamp(speed/35,0,1)*.12-state.slip*.001,clamp(dt*5,0,1));
+  const yFront=terrainY(c.x+newFx*2,c.z+newFz*2),yBack=terrainY(c.x-newFx*2,c.z-newFz*2);
   c.pitch=lerp(c.pitch,Math.atan2(yFront-yBack,4),clamp(dt*5,0,1));
   c.y=terrainY(c.x,c.z);
   syncCarModel();
-  const frontWheelAngle=c.turn*config.steer*(.38/(1+state.speed*.0015));
-  vehicleVisual?.update(frontWheelAngle,state.speed/3.6,dt);
-  cockpitView.update(frontWheelAngle,state.speed,config.color);
-  if(state.drift&&Math.random()<dt*(30+state.slip*.65)){
-    // The dust originates from the rear of the car, and follows the sliding tail.
-    const rightX=-fz,rightZ=fx;
-    const rearX=c.x-fx*2.4,rearZ=c.z-fz*2.4;
-    spawnDust(rearX+rightX*1.05,rearZ+rightZ*1.05,c.y,offroad);
-    spawnDust(rearX-rightX*1.05,rearZ-rightZ*1.05,c.y,offroad);
-  }
+  // The wheel is driven by the same smoothed steering demand used by the car.
+  cockpitView.update(c.turn*config.steer*(.39/(1+state.speed*.0016)),state.speed,config.color);
+  if(state.drift&&Math.random()<dt*45)spawnDust(c.x-newFx*2,c.z-newFz*2,c.y,offroad);
   state.elapsed+=dt;
-  if(state.elapsed-state.lastSample>.075){
-    state.ghostSamples.push({t:state.elapsed-state.lapStart,x:c.x,z:c.z,yaw:c.yaw});
-    state.lastSample=state.elapsed;
-  }
+  if(state.elapsed-state.lastSample>.075){state.ghostSamples.push({t:state.elapsed-state.lapStart,x:c.x,z:c.z,yaw:c.yaw});state.lastSample=state.elapsed;}
   if(state.nextGate===0){
     if(gateCrossed(gates[0],oldx,oldz,c.x,c.z)){state.nextGate=1;state.passed=0;completeLap();}
   }else checkGates(oldx,oldz);
@@ -340,23 +382,17 @@ function updateCamera(dt){
   const fx=-Math.sin(c.yaw),fz=-Math.cos(c.yaw),y=terrainY(c.x,c.z);
   const rightX=-fz,rightZ=fx;
   const driver=state.camMode===1 && state.mode!=='menu';
-  // During a slide, chase the direction of travel rather than the nose.
-  // This exposes the body's sideways attitude instead of hiding it.
-  const vmag=Math.hypot(c.vx,c.vz);
-  const chaseBlend=clamp((c.driftBlend||0)*.60+state.slip/80,0,.72);
-  const trackFx=vmag>3?lerp(fx,c.vx/vmag,chaseBlend):fx;
-  const trackFz=vmag>3?lerp(fz,c.vz/vmag,chaseBlend):fz;
-  // Third-person camera is closer so the new 6.3 m body fills more pixels.
+  // Driver's eye is behind the windscreen, offset to the left seat.
   const desired=driver
-    ? new THREE.Vector3(c.x+fx*.46-rightX*.63,y+2.37,c.z+fz*.46-rightZ*.63)
-    : new THREE.Vector3(c.x-trackFx*11.2,y+6.35,c.z-trackFz*11.2);
+    ? new THREE.Vector3(c.x+fx*.32-rightX*.63,y+2.18,c.z+fz*.32-rightZ*.63)
+    : new THREE.Vector3(c.x-fx*13,y+7.3,c.z-fz*13);
   if(state.mode==='menu')desired.set(c.x+15,y+10,c.z+19);
   const k=clamp(dt*(driver?17:5),0,1);
   camera.position.lerp(desired,k);
   const look=new THREE.Vector3(
-    c.x+(driver?fx*40:trackFx*11)-(driver?rightX*.63:0),
-    y+(driver?2.28:2.15),
-    c.z+(driver?fz*40:trackFz*11)-(driver?rightZ*.63:0)
+    c.x+fx*(driver?40:13)-(driver?rightX*.63:0),
+    y+(driver?2.08:2.05),
+    c.z+fz*(driver?40:13)-(driver?rightZ*.63:0)
   );
   if(state.mode==='menu')look.set(c.x,y+1.2,c.z);
   camTarget.lerp(look,k);
@@ -375,7 +411,7 @@ function updateHud(){
   $('best-race').textContent=formatTime(state.recordRace?.time);
   $('speed').textContent=String(Math.round(state.speed)).padStart(3,'0');
   $('speed-bar').style.width=clamp(state.speed/MAX_SPEED_KMH*100,0,100)+'%';
-  $('drift-indicator').textContent=state.drift?'POWER SLIDE // '+Math.round(state.slip)+'°':'GRIP';
+  $('drift-indicator').textContent=state.drift?'DRIFT  // '+Math.round(state.slip)+'°':'GRIP';
   $('surface-indicator').textContent=state.surface;
   $('camera-indicator').textContent=state.camMode===0?'CHASE CAM [C]':'DRIVER CAM [C]';
   const old=state.recordLap?.time;
