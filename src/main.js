@@ -59,13 +59,13 @@ let driveTelemetry={surface:'GRAVEL',throttleTarget:200,requested:false,engine:0
 function updateTelemetry(){
   if(telemetryBox.hidden)return;
   const d=driveTelemetry;
-  telemetryBox.textContent='MATTEA RALLY '+BUILD_LABEL+'\\n'+
-    'SPEED    '+d.kmh.toFixed(0)+' km/h\\n'+
-    'SURFACE  '+d.surface+'\\n'+
-    'W / GAS  '+(d.requested?'ON':'OFF')+'\\n'+
-    'ENGINE   '+d.engine.toFixed(1)+' m/s²\\n'+
-    'TARGET   '+d.throttleTarget.toFixed(0)+' km/h\\n'+
-    'TURN LOSS '+d.steerLoss.toFixed(2)+' m/s\\n'+
+  telemetryBox.textContent='MATTEA RALLY '+BUILD_LABEL+'\n'+
+    'SPEED    '+d.kmh.toFixed(0)+' km/h\n'+
+    'SURFACE  '+d.surface+'\n'+
+    'W / GAS  '+(d.requested?'ON':'OFF')+'\n'+
+    'ENGINE   '+d.engine.toFixed(1)+' m/s²\n'+
+    'TARGET   '+d.throttleTarget.toFixed(0)+' km/h\n'+
+    'TURN LOSS '+d.steerLoss.toFixed(2)+' m/s\n'+
     'SPACE + A/D: HANDBRAKE';
 }
 
