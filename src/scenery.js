@@ -84,6 +84,43 @@ export function populateScenery(world, {track,roadSamples,terrainY,nearestRoad,h
   const accent=cube(set,[start.x,start.y+10.3,start.z+.08],[track.width*.58,.42,.12],0xffb957);
   accent.rotation.y=banner.rotation.y;
 
+  // Low-poly mountain silhouettes and floating cloud banks create real depth
+  // behind the nearby scenery; the terrain itself remains finite and driveable.
+  const ridgeMat=flat(track.id==='snow'?0x8b9dab:track.id==='desert'?0x9f684c:0x566c65);
+  const peakCap=flat(track.id==='snow'?0xe9f2f5:track.id==='desert'?0xc28a61:0x81958a);
+  const mistMat=new THREE.MeshLambertMaterial({
+    color:track.id==='snow'?0xecf1f4:track.id==='desert'?0xe1b89c:0xe2e1d2,
+    transparent:true,opacity:track.id==='desert'?.52:.68,depthWrite:false,flatShading:true
+  });
+  const mountain=new THREE.ConeGeometry(30,1,5);
+  for(let i=0;i<34;i++){
+    const angle=i/34*TAU,r=452+rng(i,88)*68;
+    const x=Math.cos(angle)*r,z=Math.sin(angle)*r;
+    const height=68+rng(i,92)*108;
+    const base=terrainY(x,z)-18;
+    const peak=new THREE.Mesh(mountain,ridgeMat);
+    peak.scale.set(1+rng(i,31)*.8,height,1+rng(i,17)*.8);
+    peak.rotation.y=rng(i,73)*TAU;peak.position.set(x,base+height*.43,z);set.add(peak);
+    if(track.id==='snow'&&i%3!==0){
+      const cap=new THREE.Mesh(new THREE.ConeGeometry(21,25,5),peakCap);
+      cap.position.set(x,base+height*.85,z);set.add(cap);
+    }
+  }
+  const cloudGeo=new THREE.DodecahedronGeometry(1,0);
+  for(let i=0;i<22;i++){
+    const a=i/22*TAU+track.seed*.3;
+    const distance=175+rng(i,102)*230;
+    const x=Math.cos(a)*distance,z=Math.sin(a)*distance;
+    const y=88+rng(i,104)*47;
+    const cloud=new THREE.Group();cloud.position.set(x,y,z);set.add(cloud);
+    for(let k=0;k<4;k++){
+      const puff=new THREE.Mesh(cloudGeo,mistMat);
+      puff.position.set((k-1.5)*9,rng(k,i)*2,0);
+      puff.scale.set(10+rng(i,k)*5,4+rng(k,i+20)*2,7);
+      cloud.add(puff);
+    }
+  }
+
   // Repeatable landmark silhouettes give the three stages distinct identities.
   if(track.id==='pine'){
     const site=structurePosition(.16,1,50);
