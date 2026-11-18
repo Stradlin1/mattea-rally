@@ -13,9 +13,10 @@ export function stepVehicle(car, input, vehicle, ground, dt) {
   const oldLongitudinal = car.vx * forwardX + car.vz * forwardZ;
   const moving = Math.abs(oldLongitudinal) > 7.2; // 26 km/h
 
-  // Shift with steering initiates a power-slide. Its intensity fades over
-  // about a second, preserving inertia after Shift is released.
-  const requestSlide = !!input.boost && Math.abs(steer) > .1 && moving;
+  // Space + steering is a handbrake turn: break rear traction while moving.
+  // Shift is exclusively an acceleration boost and does not request a slide.
+  // The drift fades naturally after the handbrake is released.
+  const requestSlide = !!input.brake && Math.abs(steer) > .1 && moving;
   const wasDrifting = !!car.driftRequested;
   car.driftRequested = requestSlide;
   car.driftBlend ??= 0;
@@ -51,7 +52,7 @@ export function stepVehicle(car, input, vehicle, ground, dt) {
   let forward = car.vx * fx + car.vz * fz;
   let lateral = car.vx * rightX + car.vz * rightZ;
 
-  // Rear-tire traction breaks loose under boost+steer. The desired drift slip
+  // Rear-tire traction breaks loose under handbrake+steer. The desired drift slip
   // is maintained as actual lateral velocity, not a visual-only yaw rotation.
   // Countersteering helps recover, and grip rebuilds gradually on release.
   const countersteering = Math.abs(steer) > .2 && steer * lateral < 0;
@@ -73,7 +74,7 @@ export function stepVehicle(car, input, vehicle, ground, dt) {
   // At 180-195 km/h further gains take much longer than 0-100.
   const torqueCurve = .035 + .965 * Math.pow(Math.max(0, 1 - progress * progress), 1.42);
   if (input.gas && forward < softCap) {
-    const boostMultiplier = input.boost && !requestSlide ? 1.23 : 1.04;
+    const boostMultiplier = input.boost ? 1.23 : 1;
     const a = vehicle.accel * boostMultiplier * torqueCurve *
       (ground.offroad ? (vehicle.offroadPower || .76) : 1);
     car.vx += fx * a * dt;
@@ -90,7 +91,10 @@ export function stepVehicle(car, input, vehicle, ground, dt) {
     }
   }
   if (input.brake) {
-    const decel = Math.min(Math.abs(forward), 18 * ground.grip * dt);
+    // Straight-line Space is firm braking. During a handbrake turn, the rear
+    // wheels lose grip but the car keeps lateral momentum instead of stopping.
+    const brakingForce = requestSlide ? 4.2 : 18;
+    const decel = Math.min(Math.abs(forward), brakingForce * ground.grip * dt);
     car.vx -= fx * decel * Math.sign(forward);
     car.vz -= fz * decel * Math.sign(forward);
   }
