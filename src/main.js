@@ -5,6 +5,7 @@ import { freshNitro, stepNitro, NITRO } from './nitro.js';
 import { CARS } from './cars.js';
 import { createLapTracker, updateLapTracker } from './lap.js';
 import { populateScenery } from './scenery.js';
+import { RallyAudio } from './audio.js';
 
 const $ = (id) => document.getElementById(id);
 const clamp = (v,a,b) => Math.max(a,Math.min(b,v));
@@ -13,7 +14,7 @@ const TAU = Math.PI*2;
 const MAX_SPEED_KMH = 200;
 const MAX_SPEED_MS = MAX_SPEED_KMH / 3.6;
 const RECORD_VERSION = 'mattea-rally-v10';
-const BUILD_LABEL = 'V1.0';
+const BUILD_LABEL = 'V1.1';
 const WEATHER = [
   {id:'clear',name:'晴天',grip:1,fog:1},
   {id:'rain',name:'雨天',grip:.77,fog:.82},
@@ -43,6 +44,28 @@ let raceTrack=null,roadSamples=[],terrainMesh=null,roadMesh=null,carGroup=null,c
 const hud=$('hud'),menu=$('menu'),pauseEl=$('pause'),results=$('results');
 const tmpVec=new THREE.Vector3();
 const mctx=$('minimap').getContext('2d');
+const audio=new RallyAudio();
+
+function syncAudioControls(){
+  const music=$('music-toggle'),engine=$('engine-toggle');
+  music.textContent=audio.musicOn?'BGM ON [M]':'BGM OFF [M]';
+  engine.textContent=audio.engineOn?'ENGINE ON [N]':'ENGINE OFF [N]';
+  music.setAttribute('aria-pressed',String(audio.musicOn));
+  engine.setAttribute('aria-pressed',String(audio.engineOn));
+  $('audio-volume').value=String(Math.round(audio.volume*100));
+  $('audio-volume-value').textContent=Math.round(audio.volume*100)+'%';
+  $('audio-status').textContent=audio.unavailable?'UNAVAILABLE':audio.ctx?.state==='running'?'AUDIO READY':'START TO ENABLE';
+}
+$('music-toggle').addEventListener('click',()=>{
+  audio.unlock();audio.setMusicEnabled(!audio.musicOn);syncAudioControls();
+});
+$('engine-toggle').addEventListener('click',()=>{
+  audio.unlock();audio.setEngineEnabled(!audio.engineOn);syncAudioControls();
+});
+$('audio-volume').addEventListener('input',event=>{
+  audio.unlock();audio.setVolume(Number(event.target.value)/100);syncAudioControls();
+});
+syncAudioControls();
 // F3 diagnostic overlay. It lets players distinguish old cached builds,
 // off-road restrictions, braking and lateral-speed loss while testing.
 const telemetryBox=document.createElement('div');
@@ -284,6 +307,7 @@ function buildCar(){
 function createWorld(){
   clearWorld();buildCurve();buildTerrain();createRoad();buildCar();
   const tr=currentTrack(),weather=currentWeather();scene.background=new THREE.Color(tr.sky);
+  audio.setStage(tr.id);
   scene.fog=new THREE.FogExp2(tr.sky,weather.id==='fog'?.017:weather.id==='rain'?.0075:.0040);
   hemi.intensity=weather.id==='rain'?1.65:2.3;sun.intensity=weather.id==='rain'?.8:2;
   state.car={x:0,z:0,yaw:0,vx:0,vz:0,y:0,roll:0,pitch:0,turn:0};
@@ -309,17 +333,18 @@ function syncCarModel(){
 }
 function startRace(){
   if(!Number.isInteger(settings.laps)||settings.laps<1||settings.laps>99)return;
+  audio.unlock();
   createWorld();resetCar(true);
   state.recordLap=getRecord('best-lap',false);
   state.recordRace=getRecord('best-race',true);
   state.ghostBest=state.recordLap?.ghost||[];
   state.mode='race';state.paused=false;menu.classList.add('hidden');results.classList.add('hidden');pauseEl.classList.add('hidden');hud.classList.remove('hidden');
-  showCallout('GO!',1.4);KEY.clear();lastFrame=performance.now();updateHud();
+  showCallout('GO!',1.4);KEY.clear();lastFrame=performance.now();updateHud();syncAudioControls();
 }
 function showCallout(value,seconds=1){const el=$('center-callout');el.textContent=value;el.classList.remove('hidden');state.calloutTime=seconds;}
 function toast(value,seconds=2){$('toast').textContent=value;$('toast').classList.remove('hidden');state.toastTime=seconds;}
 function showMenu(){
-  state.mode='menu';state.paused=false;KEY.clear();hud.classList.add('hidden');pauseEl.classList.add('hidden');results.classList.add('hidden');menu.classList.remove('hidden');renderMenu();createWorld();
+  state.mode='menu';state.paused=false;KEY.clear();syncAudioControls();hud.classList.add('hidden');pauseEl.classList.add('hidden');results.classList.add('hidden');menu.classList.remove('hidden');renderMenu();createWorld();
 }
 function setPaused(value){
   if(state.mode!=='race')return;
@@ -565,8 +590,14 @@ function resize(){
 }
 window.addEventListener('resize',resize);resize();
 document.addEventListener('keydown',e=>{
-  if(['KeyW','KeyA','KeyS','KeyD','Space','ShiftLeft','ShiftRight','KeyC','KeyR','Escape','F3'].includes(e.code))e.preventDefault();
+  if(['KeyW','KeyA','KeyS','KeyD','Space','ShiftLeft','ShiftRight','KeyC','KeyR','Escape','F3','KeyM','KeyN'].includes(e.code))e.preventDefault();
   if(e.repeat)return;
+  if(e.code==='KeyM'){
+    audio.unlock();audio.setMusicEnabled(!audio.musicOn);syncAudioControls();return;
+  }
+  if(e.code==='KeyN'){
+    audio.unlock();audio.setEngineEnabled(!audio.engineOn);syncAudioControls();return;
+  }
   if(e.code==='F3'){telemetryBox.hidden=!telemetryBox.hidden;updateTelemetry();return;}
   if(e.code==='Escape'&&state.mode==='race'){setPaused(!state.paused);return;}
   if(e.code==='KeyC'&&state.mode==='race'&&!state.paused){state.camMode=(state.camMode+1)%2;toast(state.camMode?'DRIVER CAMERA':'CHASE CAMERA',.7);}
@@ -597,6 +628,16 @@ function loop(now){
   }else if(state.mode==='menu'&&state.car){state.car.yaw+=dt*.13;syncCarModel();}
   else if(exhaustFlames.length){exhaustFlames.forEach(flame=>flame.group.visible=false);}
   updateCamera(dt);
+  audio.update({
+    mode:state.mode,
+    paused:state.paused,
+    speedKmh:state.speed,
+    gas:KEY.has('KeyW'),
+    brake:KEY.has('Space'),
+    drift:state.drift,
+    nitro:!!state.nitro?.active,
+    carId:currentCar().id
+  });
   renderer.render(scene,camera);
 }
 try{renderMenu();createWorld();requestAnimationFrame(loop);}
