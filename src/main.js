@@ -9,8 +9,8 @@ const lerp = (a,b,t) => a+(b-a)*t;
 const TAU = Math.PI*2;
 const MAX_SPEED_KMH = 200;
 const MAX_SPEED_MS = MAX_SPEED_KMH / 3.6;
-const RECORD_VERSION = 'mattea-rally-v8';
-const BUILD_LABEL = 'V0.8';
+const RECORD_VERSION = 'mattea-rally-v9';
+const BUILD_LABEL = 'V0.9';
 const CARS = [
   {id:'classic',name:'CLASSIC GT',detail:'平衡 · 经典拉力',color:0xe45b45,accel:9.8,max:MAX_SPEED_MS,grip:6.8,steer:1.00,drift:.48},
   {id:'awd',name:'AWD TURBO',detail:'四驱 · 强抓地力',color:0x4d95d4,accel:10.3,max:MAX_SPEED_MS,grip:8.7,steer:.92,drift:.30},
@@ -414,10 +414,12 @@ function updatePhysics(dt){
   driveTelemetry={surface:state.surface,throttleTarget:throttleTarget*3.6,
     requested:gas,engine:engineForce,steerLoss:Math.max(0,speedBeforeTireForce-
     Math.hypot(c.vx,c.vz)),kmh:state.speed};
-  // V0.5 rolling/aero drag was too high: near 90 km/h it canceled most
-  // available engine torque. Preserve stronger resistance only off-road.
-  const drag=Math.min(.12,dt*(.008+speed*.00008+
-    (offroad?.035+speed*.0007:0)+(brake?.012:0)));
+  // Reduce passive off-road resistance to exactly 50% of its former value.
+  // Brake-specific drag is unchanged, as are road grip and the nitro system.
+  const roadDrag=.008+speed*.00008;
+  const formerOffroadDrag=roadDrag+.035+speed*.0007;
+  const surfaceDrag=offroad?formerOffroadDrag*.5:roadDrag;
+  const drag=Math.min(.12,dt*(surfaceDrag+(brake?.012:0)));
   c.vx*=1-drag;c.vz*=1-drag;
   const actualSpeed=Math.hypot(c.vx,c.vz);
   if(actualSpeed>max){const ratio=max/actualSpeed;c.vx*=ratio;c.vz*=ratio;}
