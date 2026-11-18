@@ -37,7 +37,7 @@ Open http://localhost:8000. Opening `index.html` directly with `file://` may blo
 ## Rules / 赛制
 
 - Set the race length from **1 to 99 laps**.
-- Follow the track in the correct direction and pass **three checkpoints in order** before crossing the start/finish line. Shortcuts through traversable off-road terrain are allowed as long as checkpoints are passed.
+- **No checkpoints:** laps register only at the start/finish line after a substantial forward traversal of the closed route. Repeated line crossings, reverse driving and implausible progress jumps do not earn laps. Off-road driving remains allowed.
 - **Best Lap** records the fastest valid lap regardless of the total race length.
 - **Best Race** records the fastest *completed* N-lap race, separately for each N.
 - Both records are scoped by track, car and weather to keep comparisons consistent.
@@ -91,9 +91,20 @@ Open http://localhost:8000. Opening `index.html` directly with `file://` may blo
 - On-track resistance, braking drag, tire grip, acceleration, nitro burn/charging and off-road speed targets are unchanged.
 - Build label: `V0.9`; PB namespace: `mattea-rally-v9`. Older records remain in browser storage.
 
+## V1.0 — Start-line-only laps, differentiated cars and richer worlds
+
+- **All intermediate checkpoints and checkpoint posts have been removed.** One physical checkered start/finish line remains. Lap validation uses signed closed-loop progress, actual distance, elapsed time, correct crossing direction and proximity to the circuit. This is deliberately less restrictive than checkpoints while filtering repeated start-line exploits.
+- The cars now differ substantially in acceleration, steering sensitivity, lateral grip, drifting characteristics, class-specific maximum speed, off-road tolerance, nitro strength, nitro burn and drift recharge. Main car silhouette stays based on the preferred V0.2 model, with a few class-specific accents.
+- All three environments now include dense instanced flora and rocks, painted road edges and shoulders, start arches, stylized clouds and mountain silhouettes, plus distinctive landmarks:
+  - Pine Valley: timber cabin, observation tower and stacked logs.
+  - Frost Ridge: alpine hut, reflective lake and snow-covered peaks.
+  - Red Canyon: red-rock arch, desert encampment and cacti.
+- Repeated small scenery meshes are GPU-instanced to reduce draw calls; decorative roadside items are non-blocking, so no invisible walls are introduced.
+- Previous PB records remain stored; `mattea-rally-v10` starts a fresh ranking because the course validation and car balance changed.
+
 ## Current prototype / 当前原型
 
-- Four tunable cars: Classic GT, AWD Turbo, Drift Coupe, Dirt Buggy.
+- Four distinct driving classes: Classic GT (balanced), AWD Turbo (traction and acceleration), Drift Coupe (rear grip and powerful nitro refills), Dirt Buggy (superior off-road performance).
 - Three distinct looping tracks: Pine Valley, Frost Ridge, Red Canyon.
 - Clear, rain and fog handling and visibility settings.
 - Traversable off-road terrain and physical collision responses around trees, rocks and the outer world edge.
@@ -107,7 +118,12 @@ Open http://localhost:8000. Opening `index.html` directly with `file://` may blo
 ```text
 index.html       HTML menus, HUD, result screen
 styles.css       Retro responsive UI
-src/main.js      Game scene, terrain, track, vehicles, controls, racing logic
+src/main.js      Game scene, terrain, vehicle visuals, controls, HUD
+src/cars.js      Vehicle class parameters
+src/lap.js       Start/finish-only lap validation
+src/scenery.js   Instanced nature and thematic landmarks
+src/nitro.js     Finite nitro and drift regeneration
+src/tracks.js    Distinct course geometry
 ```
 
 ## Technology / 技术
