@@ -42,8 +42,16 @@
           </div>
           <div id="menu-records" class="records-preview"></div>
           <div class="menu-actions">
+            <div class="audio-controls" aria-label="Audio settings">
+              <div class="audio-heading"><span>AUDIO / 声音</span><span id="audio-status">START TO ENABLE</span></div>
+              <div class="audio-switches">
+                <button type="button" id="music-toggle" class="audio-toggle" aria-pressed="true">BGM ON</button>
+                <button type="button" id="engine-toggle" class="audio-toggle" aria-pressed="true">ENGINE ON</button>
+                <label class="audio-volume">VOL <input id="audio-volume" type="range" min="0" max="100" step="1" value="62" aria-label="Master audio volume"><output id="audio-volume-value">62%</output></label>
+              </div>
+            </div>
             <button id="start-btn" class="primary" type="button">START TIME ATTACK <span>▶</span></button>
-            <p>WASD 驾驶 · A/D + SPACE 漂移并补充氮气 · SHIFT 消耗氮气加速 · C 视角</p>
+            <p>WASD 驾驶 · A/D + SPACE 漂移并补充氮气 · SHIFT 氮气 · C 视角 · M 音乐 · N 引擎声</p>
           </div>
         </div>
       </div>
@@ -85,7 +93,7 @@
         <div id="camera-indicator">CHASE CAM</div>
       </div>
     </div>
-    <div class="hud-controls">WASD DRIVE · A/D + SPACE DRIFT / CHARGE · SHIFT NITRO · C CAMERA · R RESTART · ESC PAUSE</div>
+    <div class="hud-controls">WASD · A/D + SPACE DRIFT · SHIFT NITRO · M BGM · N ENGINE · C CAMERA · R RESTART · ESC PAUSE</div>
   </div>
 
   <section id="pause" class="overlay dialog-overlay hidden">
