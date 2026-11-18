@@ -51,6 +51,15 @@ Open http://localhost:8000. Opening `index.html` directly with `file://` may blo
 - **C changes between chase camera and a driver's-seat cockpit view**, including an animated steering wheel, dashboard gauges and windscreen frame. The steering wheel follows steering input; no driver arms or hands are rendered.
 - Because driving physics and circuit geometry were changed, PB records now use version `mattea-rally-v2`. Previous V0.1 records remain in browser storage, but do not appear in new rankings.
 
+## V0.3 handling and visuals / 操控与车辆升级
+
+- Larger 3.1 m × 6.3 m low-poly rally car, with sloped glass, layered bodywork, wider fenders, rims, lights, spoiler, hood scoop and rally decals.
+- The chase camera sits closer to the body and follows the *movement vector* during a drift, making the car's sideways attitude visible.
+- Track widths: Pine Valley **26 m**, Frost Ridge **24 m**, Red Canyon **29 m**. Track layouts and checkpoint rules remain intact.
+- Nonlinear speed response: gradually decreasing available torque toward **200 km/h**, with a slower high-speed build and a hard speed limit. Shift boosts acceleration and also initiates power slides when combined with steering.
+- Drifting now simulates lateral velocity, progressive tire grip loss, a rear-axle breakaway impulse, yaw inertia and grip recovery. Different vehicles have separate drift-kick values.
+- The improved vehicle physics and wider course geometry use PB namespace `mattea-rally-v3` to prevent comparing incompatible records; older local records are not erased.
+
 ## Current prototype / 当前原型
 
 - Four tunable cars: Classic GT, AWD Turbo, Drift Coupe, Dirt Buggy.
@@ -60,7 +69,7 @@ Open http://localhost:8000. Opening `index.html` directly with `file://` may blo
 - Arcade velocity-based drift, dust, camera switching, speedometer, minimap and split checkpoint prompts.
 - Low-resolution WebGL rendering enlarged with nearest-neighbor sampling for a retro pixelated look.
 
-**Prototype limitations:** Vehicle physics are intentionally arcade-style, not a full tire/suspension rigid-body simulation. The cockpit has a simplified low-poly dashboard rather than a fully furnished interior. Weather effects presently alter fog/traction rather than having fully rendered rain particle systems. Best-lap ghost samples are stored for future replay support but not displayed yet. These are planned improvements, not completed features.
+**Prototype limitations:** Vehicle physics are still arcade-style (custom lateral-slip and yaw dynamics), not a full tire/suspension rigid-body simulation. The cockpit has a simplified low-poly dashboard rather than a fully furnished interior. Weather effects presently alter fog/traction rather than having fully rendered rain particle systems. Best-lap ghost samples are stored for future replay support but not displayed yet. These are planned improvements, not completed features.
 
 ## Project structure / 结构
 
