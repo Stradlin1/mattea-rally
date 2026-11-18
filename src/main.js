@@ -21,7 +21,7 @@ const WEATHER = [
 ];
 const settings={car:'classic',track:'pine',weather:'clear',laps:3};
 const KEY=new Set();
-const state={mode:'menu',paused:false,elapsed:0,lapStart:0,lap:1,lapTimes:[],passed:0,nextGate:1,courseProgress:0,lapTracker:null,anyNewLapPB:false,car:null,model:null,camMode:0,drift:false,speed:0,slip:0,recordLap:null,recordRace:null,ghostSamples:[],ghostBest:[],lastSample:0,surface:'GRAVEL',weatherTime:0,calloutTime:0,toastTime:0};
+const state={mode:'menu',paused:false,elapsed:0,lapStart:0,lap:1,lapTimes:[],courseProgress:0,lapTracker:null,anyNewLapPB:false,car:null,model:null,camMode:0,drift:false,speed:0,slip:0,recordLap:null,recordRace:null,ghostSamples:[],ghostBest:[],lastSample:0,surface:'GRAVEL',weatherTime:0,calloutTime:0,toastTime:0};
 const canvas=$('game');
 const renderer=new THREE.WebGLRenderer({canvas,antialias:false,powerPreference:'high-performance'});
 renderer.setPixelRatio(1);
@@ -150,6 +150,37 @@ function createRoad(){
     segment.position.copy(mid);segment.rotation.y=Math.atan2(b.x-a.x,b.z-a.z);strips.add(segment);
   }
   world.add(strips);
+  // Thin gravel shoulders and colored edge strips add readable road boundaries
+  // without physical walls. Dirt, snow and red-rock stages use different hues.
+  const shoulderTone=currentTrack().id==='snow'?0xdbe8ed:currentTrack().id==='desert'?0x80523e:0x6e5746;
+  const trimTone=currentTrack().id==='snow'?0xeaf3f7:currentTrack().id==='desert'?0xe3b078:0xc5b99b;
+  const shoulderGeo=new THREE.BufferGeometry(),shoulderVerts=[],shoulderIndices=[];
+  const edgeGeo=new THREE.BufferGeometry(),edgeVerts=[],edgeIndices=[];
+  for(let i=0;i<=n;i++){
+    const p=roadSamples[i%n],nx=-p.tz,nz=p.tx;
+    for(const side of [-1,1]){
+      for(const width of [half-.35,half+2.3]){
+        const x=p.x+nx*width*side,z=p.z+nz*width*side;
+        shoulderVerts.push(x,terrainY(x,z)+.075,z);
+      }
+      for(const width of [half-.60,half-.32]){
+        const x=p.x+nx*width*side,z=p.z+nz*width*side;
+        edgeVerts.push(x,terrainY(x,z)+.18,z);
+      }
+    }
+    if(i<n)for(let j=0;j<2;j++){
+      const o=i*4+j*2;
+      shoulderIndices.push(o,o+1,o+4,o+1,o+5,o+4);
+      edgeIndices.push(o,o+1,o+4,o+1,o+5,o+4);
+    }
+  }
+  shoulderGeo.setAttribute('position',new THREE.Float32BufferAttribute(shoulderVerts,3));
+  shoulderGeo.setIndex(shoulderIndices);shoulderGeo.computeVertexNormals();
+  const shoulders=new THREE.Mesh(shoulderGeo,new THREE.MeshLambertMaterial({color:shoulderTone,side:THREE.DoubleSide}));
+  world.add(shoulders);
+  edgeGeo.setAttribute('position',new THREE.Float32BufferAttribute(edgeVerts,3));
+  edgeGeo.setIndex(edgeIndices);edgeGeo.computeVertexNormals();
+  world.add(new THREE.Mesh(edgeGeo,new THREE.MeshBasicMaterial({color:trimTone,side:THREE.DoubleSide})));
   // A single, visible checkered start/finish line; no intermediate markers.
   const start=roadSamples[0],fn=new THREE.Vector3(-start.tz,0,start.tx);
   for(let j=-5;j<=5;j++){
