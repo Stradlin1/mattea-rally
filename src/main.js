@@ -8,12 +8,12 @@ const lerp = (a,b,t) => a+(b-a)*t;
 const TAU = Math.PI*2;
 const MAX_SPEED_KMH = 200;
 const MAX_SPEED_MS = MAX_SPEED_KMH / 3.6;
-const RECORD_VERSION = 'mattea-rally-v5';
+const RECORD_VERSION = 'mattea-rally-v6';
 const CARS = [
-  {id:'classic',name:'CLASSIC GT',detail:'平衡 · 经典拉力',color:0xe45b45,accel:6.7,max:MAX_SPEED_MS,grip:6.8,steer:1.00,drift:.48},
-  {id:'awd',name:'AWD TURBO',detail:'四驱 · 强抓地力',color:0x4d95d4,accel:7.2,max:MAX_SPEED_MS,grip:8.7,steer:.92,drift:.30},
-  {id:'rwd',name:'DRIFT COUPE',detail:'后驱 · 灵活甩尾',color:0xe9be5a,accel:7.6,max:MAX_SPEED_MS,grip:6.0,steer:1.15,drift:.66},
-  {id:'buggy',name:'DIRT BUGGY',detail:'越野 · 复杂地形',color:0x7bd19a,accel:6.9,max:MAX_SPEED_MS,grip:7.0,steer:.97,drift:.54}
+  {id:'classic',name:'CLASSIC GT',detail:'平衡 · 经典拉力',color:0xe45b45,accel:9.1,max:MAX_SPEED_MS,grip:6.8,steer:1.00,drift:.48},
+  {id:'awd',name:'AWD TURBO',detail:'四驱 · 强抓地力',color:0x4d95d4,accel:9.6,max:MAX_SPEED_MS,grip:8.7,steer:.92,drift:.30},
+  {id:'rwd',name:'DRIFT COUPE',detail:'后驱 · 灵活甩尾',color:0xe9be5a,accel:10.0,max:MAX_SPEED_MS,grip:6.0,steer:1.15,drift:.66},
+  {id:'buggy',name:'DIRT BUGGY',detail:'越野 · 复杂地形',color:0x7bd19a,accel:9.3,max:MAX_SPEED_MS,grip:7.0,steer:.97,drift:.54}
 ];
 const WEATHER = [
   {id:'clear',name:'晴天',grip:1,fog:1},
@@ -307,12 +307,14 @@ function updatePhysics(dt){
   const slide=brake&&turning&&Math.abs(forward)>7;
   // Keep the old weighty lateral-grip dynamics, with a short grip-release/recovery.
   c.handbrakeGrip=lerp(c.handbrakeGrip||0,slide?1:0,clamp(dt*(slide?9:5),0,1));
-  // 200 km/h hard ceiling; off-road reduces attainable speed but never creates a second, higher boost ceiling.
-  const max= Math.min(MAX_SPEED_MS,config.max)*(offroad?(config.id==='buggy'?.82:.65):1);
-  if(gas&&forward<max){
+  // The absolute limit stays at 200 km/h. Off-road has a lower sustainable
+  // throttle target, but crossing the road edge cannot instantly erase speed.
+  const max=Math.min(MAX_SPEED_MS,config.max);
+  const throttleTarget=offroad?max*(config.id==='buggy'?.85:.68):max;
+  if(gas&&forward<throttleTarget){
     // Slower, nonlinear torque: acceleration falls away progressively near 200 km/h.
     const progress=clamp(Math.max(0,forward)/max,0,1);
-    const torque=0.035+0.965*Math.pow(Math.max(0,1-progress*progress),1.42);
+    const torque=0.08+0.92*Math.pow(Math.max(0,1-progress*progress),1.42);
     const force=config.accel*(boost?1.23:1)*(offroad?(config.id==='buggy'?.88:.64):1)*torque;
     c.vx+=fx*force*dt;c.vz+=fz*force*dt;
   }
@@ -337,8 +339,23 @@ function updatePhysics(dt){
   const lat=c.vx*rx+c.vz*rz;
   const effectiveGrip=config.grip*grip*lerp(.98,config.drift,c.handbrakeGrip);
   const damp=1-Math.exp(-effectiveGrip*dt);
+  const speedBeforeTireForce=Math.hypot(c.vx,c.vz);
   c.vx-=rx*lat*damp;c.vz-=rz*lat*damp;
-  const drag=Math.min(.12,dt*(.12+speed*.004+(offroad?.8:0)+(brake?.65:0)));
+  const speedAfterTireForce=Math.hypot(c.vx,c.vz);
+  if(speedAfterTireForce>.01&&forward>1){
+    // A grippy tire steers velocity as well as cancelling lateral slip.
+    // Retain some of that directional energy, instead of treating every
+    // normal corner as heavy braking. Handbrake slides still shed speed.
+    const energyRetention=lerp(.68,.08,c.handbrakeGrip);
+    const retainedSpeed=speedAfterTireForce+
+      Math.max(0,speedBeforeTireForce-speedAfterTireForce)*energyRetention;
+    const factor=retainedSpeed/speedAfterTireForce;
+    c.vx*=factor;c.vz*=factor;
+  }
+  // V0.5 rolling/aero drag was too high: near 90 km/h it canceled most
+  // available engine torque. Preserve stronger resistance only off-road.
+  const drag=Math.min(.12,dt*(.008+speed*.00008+
+    (offroad?.035+speed*.0007:0)+(brake?.012:0)));
   c.vx*=1-drag;c.vz*=1-drag;
   const actualSpeed=Math.hypot(c.vx,c.vz);
   if(actualSpeed>max){const ratio=max/actualSpeed;c.vx*=ratio;c.vz*=ratio;}
