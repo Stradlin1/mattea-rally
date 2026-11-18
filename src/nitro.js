@@ -20,7 +20,7 @@ export function freshNitro() {
 
 // Deterministic: runs at 90 Hz. wantBoost must mean throttle can accelerate.
 // Drift charging overrides passive charging, but never drains while boosting.
-export function stepNitro(tank, dt, {wantBoost = false, drift = false, speedKmh = 0, slipDegrees = 0} = {}) {
+export function stepNitro(tank, dt, {wantBoost = false, drift = false, speedKmh = 0, slipDegrees = 0, drainMultiplier = 1, chargeMultiplier = 1} = {}) {
   const delta = clamp(Number(dt) || 0, 0, 0.1);
   const amount = Number.isFinite(tank.amount) ? tank.amount : NITRO.capacity;
   tank.amount = clamp(amount, 0, NITRO.capacity);
@@ -32,7 +32,7 @@ export function stepNitro(tank, dt, {wantBoost = false, drift = false, speedKmh 
   tank.active = false;
   tank.charging = false;
   if (wantBoost && !tank.locked && tank.amount > 0 && delta > 0) {
-    tank.amount = Math.max(0, tank.amount - NITRO.drainPerSecond * delta);
+    tank.amount = Math.max(0, tank.amount - NITRO.drainPerSecond * clamp(drainMultiplier,.2,3) * delta);
     tank.active = true;
     if (tank.amount <= 0) {
       tank.amount = 0;
@@ -42,7 +42,7 @@ export function stepNitro(tank, dt, {wantBoost = false, drift = false, speedKmh 
     const isDrifting = drift &&
       speedKmh >= NITRO.minDriftSpeedKmh &&
       slipDegrees >= NITRO.minDriftSlipDegrees;
-    const rate = isDrifting ? NITRO.driftRegenPerSecond : NITRO.passiveRegenPerSecond;
+    const rate = isDrifting ? NITRO.driftRegenPerSecond * clamp(chargeMultiplier,.2,3) : NITRO.passiveRegenPerSecond;
     const before = tank.amount;
     tank.amount = Math.min(NITRO.capacity, tank.amount + rate * delta);
     tank.charging = isDrifting && tank.amount > before;
