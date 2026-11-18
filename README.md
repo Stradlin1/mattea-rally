@@ -85,6 +85,12 @@ Open http://localhost:8000. Opening `index.html` directly with `file://` may blo
 - The entire tank resets at each new race or restart, not every lap. Pausing freezes consumption.
 - Best times now use `mattea-rally-v8` because finite boost changes race balance; older records remain in localStorage.
 
+## V0.9 — Off-road resistance adjustment / 越野阻力调整
+
+- Passive resistance outside the designated track is now **50% of the previous off-road resistance**, including the baseline drag and extra off-road drag.
+- On-track resistance, braking drag, tire grip, acceleration, nitro burn/charging and off-road speed targets are unchanged.
+- Build label: `V0.9`; PB namespace: `mattea-rally-v9`. Older records remain in browser storage.
+
 ## Current prototype / 当前原型
 
 - Four tunable cars: Classic GT, AWD Turbo, Drift Coupe, Dirt Buggy.
