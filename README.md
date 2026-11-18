@@ -68,6 +68,13 @@ Open http://localhost:8000. Opening `index.html` directly with `file://` may blo
 - The 200 km/h hard cap, nonlinear high-speed torque drop, classic V0.2 car model, planted steering behavior and A/D + Space handbrake remain.
 - Changed the best-time namespace to `mattea-rally-v6` because performance changes make earlier PBs incomparable.
 
+## V0.7 — Acceleration verification and driving telemetry / 加速核验
+
+- Increased mid-range acceleration and reduced corner-speed loss a little further, with a softer off-road throttle restriction.
+- **Press F3 in-game** to see the actual loaded build version, speed, surface detection, throttle input, engine force, target speed and turning speed loss. The start menu and race HUD also display the build label.
+- If the online game still appears stuck around 90 km/h, check **BUILD V0.7** is visible; otherwise GitHub Pages or browser cache is serving an older build.
+- PB records now use `mattea-rally-v7` because handling changed; older records are retained.
+
 ## Current prototype / 当前原型
 
 - Four tunable cars: Classic GT, AWD Turbo, Drift Coupe, Dirt Buggy.
