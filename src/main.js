@@ -2,6 +2,9 @@ import * as THREE from 'three';
 import { TRACKS } from './tracks.js';
 import { createCockpit } from './cockpit.js';
 import { freshNitro, stepNitro, NITRO } from './nitro.js';
+import { CARS } from './cars.js';
+import { createLapTracker, updateLapTracker } from './lap.js';
+import { populateScenery } from './scenery.js';
 
 const $ = (id) => document.getElementById(id);
 const clamp = (v,a,b) => Math.max(a,Math.min(b,v));
@@ -9,14 +12,8 @@ const lerp = (a,b,t) => a+(b-a)*t;
 const TAU = Math.PI*2;
 const MAX_SPEED_KMH = 200;
 const MAX_SPEED_MS = MAX_SPEED_KMH / 3.6;
-const RECORD_VERSION = 'mattea-rally-v9';
-const BUILD_LABEL = 'V0.9';
-const CARS = [
-  {id:'classic',name:'CLASSIC GT',detail:'平衡 · 经典拉力',color:0xe45b45,accel:9.8,max:MAX_SPEED_MS,grip:6.8,steer:1.00,drift:.48},
-  {id:'awd',name:'AWD TURBO',detail:'四驱 · 强抓地力',color:0x4d95d4,accel:10.3,max:MAX_SPEED_MS,grip:8.7,steer:.92,drift:.30},
-  {id:'rwd',name:'DRIFT COUPE',detail:'后驱 · 灵活甩尾',color:0xe9be5a,accel:10.8,max:MAX_SPEED_MS,grip:6.0,steer:1.15,drift:.66},
-  {id:'buggy',name:'DIRT BUGGY',detail:'越野 · 复杂地形',color:0x7bd19a,accel:10.0,max:MAX_SPEED_MS,grip:7.0,steer:.97,drift:.54}
-];
+const RECORD_VERSION = 'mattea-rally-v10';
+const BUILD_LABEL = 'V1.0';
 const WEATHER = [
   {id:'clear',name:'晴天',grip:1,fog:1},
   {id:'rain',name:'雨天',grip:.77,fog:.82},
@@ -24,7 +21,7 @@ const WEATHER = [
 ];
 const settings={car:'classic',track:'pine',weather:'clear',laps:3};
 const KEY=new Set();
-const state={mode:'menu',paused:false,elapsed:0,lapStart:0,lap:1,lapTimes:[],passed:0,nextGate:1,lastGateDistance:0,anyNewLapPB:false,car:null,model:null,camMode:0,drift:false,speed:0,slip:0,recordLap:null,recordRace:null,ghostSamples:[],ghostBest:[],lastSample:0,surface:'GRAVEL',weatherTime:0,calloutTime:0,toastTime:0};
+const state={mode:'menu',paused:false,elapsed:0,lapStart:0,lap:1,lapTimes:[],passed:0,nextGate:1,courseProgress:0,lapTracker:null,anyNewLapPB:false,car:null,model:null,camMode:0,drift:false,speed:0,slip:0,recordLap:null,recordRace:null,ghostSamples:[],ghostBest:[],lastSample:0,surface:'GRAVEL',weatherTime:0,calloutTime:0,toastTime:0};
 const canvas=$('game');
 const renderer=new THREE.WebGLRenderer({canvas,antialias:false,powerPreference:'high-performance'});
 renderer.setPixelRatio(1);
@@ -42,7 +39,7 @@ const wheelMeshes=[];
 let exhaustFlames=[];
 const dust=[];
 const decor=[];
-let raceTrack=null,roadSamples=[],gates=[],terrainMesh=null,roadMesh=null,carGroup=null,camTarget=new THREE.Vector3();
+let raceTrack=null,roadSamples=[],terrainMesh=null,roadMesh=null,carGroup=null,camTarget=new THREE.Vector3();
 const hud=$('hud'),menu=$('menu'),pauseEl=$('pause'),results=$('results');
 const tmpVec=new THREE.Vector3();
 const mctx=$('minimap').getContext('2d');
@@ -121,7 +118,7 @@ function buildCurve(){
     const t=i/count,p=curve.getPointAt(t),v=curve.getTangentAt(t).normalize();
     roadSamples.push({x:p.x,z:p.z,y:terrainY(p.x,p.z),tx:v.x,tz:v.z,s:i/count});
   }
-  gates=[0,.25,.5,.75].map(frac=>roadSamples[Math.floor(frac*count)]);
+  state.lapTracker=createLapTracker(roadSamples,tr.width);
 }
 function nearestRoad(x,z){
   let nearest=0,best=Infinity;
@@ -153,18 +150,17 @@ function createRoad(){
     segment.position.copy(mid);segment.rotation.y=Math.atan2(b.x-a.x,b.z-a.z);strips.add(segment);
   }
   world.add(strips);
-  const markerMats=[new THREE.MeshBasicMaterial({color:0xf5c66c}),new THREE.MeshBasicMaterial({color:0x7ce4c4})];
-  for(let i=0;i<gates.length;i++){
-    const g=gates[i],normal=new THREE.Vector3(-g.tz,0,g.tx);
-    for(const side of [-1,1]){
-      const post=new THREE.Mesh(new THREE.BoxGeometry(.8,5,.8),markerMats[i?1:0]);
-      post.position.set(g.x+normal.x*(half+2)*side,terrainY(g.x+normal.x*(half+2)*side,g.z+normal.z*(half+2)*side)+2.5,g.z+normal.z*(half+2)*side);
-      world.add(post);
-    }
+  // A single, visible checkered start/finish line; no intermediate markers.
+  const start=roadSamples[0],fn=new THREE.Vector3(-start.tz,0,start.tx);
+  for(let j=-5;j<=5;j++){
+    const x=start.x+fn.x*j*currentTrack().width/11;
+    const z=start.z+fn.z*j*currentTrack().width/11;
+    const stripe=new THREE.Mesh(new THREE.BoxGeometry(currentTrack().width/11,.06,2),
+      new THREE.MeshBasicMaterial({color:j%2===0?0x16191e:0xf0e8d9}));
+    stripe.position.set(x,terrainY(x,z)+.34,z);
+    stripe.rotation.y=Math.atan2(start.tx,start.tz);
+    world.add(stripe);
   }
-  const start=gates[0],fn=new THREE.Vector3(-start.tz,0,start.tx);
-  for(let j=-5;j<=5;j++){const stripe=new THREE.Mesh(new THREE.BoxGeometry(currentTrack().width/11,.05,2),new THREE.MeshBasicMaterial({color:j%2===0?0x16191e:0xf0e8d9}));
-    stripe.position.set(start.x+fn.x*j*currentTrack().width/11,terrainY(start.x,start.z)+.32,start.z+fn.z*j*currentTrack().width/11);stripe.rotation.y=Math.atan2(start.tx,start.tz);world.add(stripe);}
 }
 function addTree(x,z,scale,seed){
   const y=terrainY(x,z),snow=settings.track==='snow';
@@ -191,22 +187,8 @@ function buildTerrain(){
   }}
   const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));geo.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));geo.setIndex(ids);geo.computeVertexNormals();
   terrainMesh=new THREE.Mesh(geo,new THREE.MeshLambertMaterial({vertexColors:true,side:THREE.DoubleSide}));world.add(terrainMesh);
-  const seed=tr.seed;
-  for(let i=0;i<320;i++){
-    const x=(hash(i,13,seed)-.5)*790,z=(hash(i,29,seed)-.5)*790;
-    const near=nearestRoad(x,z);
-    if(near.d<tr.width*.5+11)continue;
-    const n=hash(i,71,seed);
-    if(tr.id==='desert'){if(n<.76)addRock(x,z,1.6+hash(i,32,seed)*6,n);}
-    else if(n<.72)addTree(x,z,.65+hash(i,44,seed)*1.0,n);
-    else addRock(x,z,1.2+hash(i,34,seed)*2.6,n);
-  }
-  for(let i=0;i<36;i++){
-    const ang=i/36*TAU,r=470+hash(i,48,seed)*65,x=Math.cos(ang)*r,z=Math.sin(ang)*r;
-    const h=45+hash(i,53,seed)*120;
-    const peak=new THREE.Mesh(new THREE.ConeGeometry(38+hash(i,7,seed)*35,h,5),new THREE.MeshLambertMaterial({color:tr.id==='snow'?0x9cabb6:tr.id==='desert'?0x9b694e:0x64776e,flatShading:true}));
-    peak.position.set(x,h*.4-17,z);world.add(peak);
-  }
+  // Thematically distinct scenery is instanced in scenery.js.
+  populateScenery(world,{track:tr,roadSamples,terrainY,nearestRoad,hash});
 }
 function buildCar(){
   const config=currentCar();
@@ -228,6 +210,25 @@ function buildCar(){
   }
   const spoiler=new THREE.Mesh(new THREE.BoxGeometry(2.7,.16,.45),trim);spoiler.position.set(0,1.8,2.22);carGroup.add(spoiler);
   const bumper=new THREE.Mesh(new THREE.BoxGeometry(2.55,.3,.2),trim);bumper.position.set(0,.67,-2.58);carGroup.add(bumper);
+  // Keep the preferred classic V0.2 silhouette; distinguish classes with accents.
+  if(config.body==='awd'){
+    const scoop=new THREE.Mesh(new THREE.BoxGeometry(.82,.20,.80),trim);
+    scoop.position.set(0,1.46,-1.50);carGroup.add(scoop);
+    const rack=new THREE.Mesh(new THREE.BoxGeometry(2.35,.15,1.12),trim);
+    rack.position.set(0,2.27,-.35);carGroup.add(rack);
+  }else if(config.body==='drift'){
+    spoiler.position.y=2.20;spoiler.scale.x=1.19;
+    const decal=new THREE.Mesh(new THREE.BoxGeometry(.65,.035,3.15),
+      new THREE.MeshBasicMaterial({color:0x1e2229}));
+    decal.position.set(0,1.409,-1.35);carGroup.add(decal);
+  }else if(config.body==='buggy'){
+    for(const side of [-1,1]){
+      const rail=new THREE.Mesh(new THREE.BoxGeometry(.18,.19,3.9),trim);
+      rail.position.set(side*1.43,1.20,.05);carGroup.add(rail);
+    }
+    const lightbar=new THREE.Mesh(new THREE.BoxGeometry(2.30,.18,.28),lights);
+    lightbar.position.set(0,2.31,-.82);carGroup.add(lightbar);
+  }
   // Two visible rear exhausts and additive low-poly blue nitro flames.
   const exhaustMetal=new THREE.MeshLambertMaterial({color:0x48555c,flatShading:true});
   const outerFlame=new THREE.MeshBasicMaterial({color:0x168fff,transparent:true,opacity:.80,blending:THREE.AdditiveBlending,depthWrite:false});
@@ -266,7 +267,7 @@ function resetCar(full=false){
   c.yaw=Math.atan2(-p.tx,-p.tz);
   state.drift=false;state.slip=0;state.speed=0;state.surface='GRAVEL';
   state.nitro=freshNitro();exhaustFlames.forEach(flame=>flame.group.visible=false);
-  if(full){state.elapsed=0;state.lapStart=0;state.lap=1;state.passed=0;state.lapTimes=[];state.ghostSamples=[];state.lastSample=0;state.lastGateDistance=0;state.anyNewLapPB=false;}
+  if(full){state.elapsed=0;state.lapStart=0;state.lap=1;state.courseProgress=0;state.lapTracker=createLapTracker(roadSamples,currentTrack().width);state.lapTimes=[];state.ghostSamples=[];state.lastSample=0;state.anyNewLapPB=false;}
   syncCarModel();
 }
 function syncCarModel(){
@@ -293,20 +294,6 @@ function setPaused(value){
   if(state.mode!=='race')return;
   state.paused=value;pauseEl.classList.toggle('hidden',!value);KEY.clear();lastFrame=performance.now();
 }
-function gateCrossed(g,oldx,oldz,newx,newz){
-  const oldAlong=(oldx-g.x)*g.tx+(oldz-g.z)*g.tz;
-  const newAlong=(newx-g.x)*g.tx+(newz-g.z)*g.tz;
-  if(!(oldAlong<0&&newAlong>=0))return false;
-  const lateral=Math.abs((newx-g.x)*(-g.tz)+(newz-g.z)*g.tx);
-  return lateral<currentTrack().width*.5+8;
-}
-function checkGates(oldx,oldz){
-  const c=state.car;
-  const expected=gates[state.nextGate];
-  if(!expected||!gateCrossed(expected,oldx,oldz,c.x,c.z))return;
-  if(state.nextGate<gates.length-1){state.passed++;state.nextGate++;toast('CHECKPOINT '+state.passed+' / 3',1.1);}
-  else {state.passed=3;state.nextGate=0;toast('FINAL SECTOR',1.1);}
-}
 function completeLap(){
   const lapTime=state.elapsed-state.lapStart;
   if(lapTime<7)return;
@@ -318,7 +305,7 @@ function completeLap(){
     state.recordLap=getRecord('best-lap',false);state.ghostBest=state.recordLap.ghost;
   }
   if(state.lap>=settings.laps){finishRace(state.anyNewLapPB);return;}
-  state.lap++;state.lapStart=state.elapsed;state.passed=0;state.nextGate=1;
+  state.lap++;state.lapStart=state.elapsed;state.courseProgress=0;
   state.ghostSamples=[];state.lastSample=0;
   showCallout(newLapPB?'NEW LAP PB!':'LAP '+(state.lap-1)+' COMPLETE',1.5);
 }
@@ -347,7 +334,7 @@ function updatePhysics(dt){
   const shift=KEY.has('ShiftLeft')||KEY.has('ShiftRight');
   const steering=(KEY.has('KeyA')?1:0)-(KEY.has('KeyD')?1:0);
   const near=nearestRoad(c.x,c.z),offroad=near.d>currentTrack().width*.5;
-  const terrainGrip=offroad?(settings.track==='snow'?.59:settings.track==='desert'?.68:.70):1;
+  const terrainGrip=offroad?config.offroadGrip:1;
   const grip=terrainGrip*weather.grip;
   state.surface=offroad?(settings.track==='snow'?'SNOW FIELD':settings.track==='desert'?'SAND':'GRASS'):(settings.track==='snow'?'SNOW ROAD':settings.track==='desert'?'DESERT GRAVEL':'GRAVEL');
   const fx=-Math.sin(c.yaw),fz=-Math.cos(c.yaw),rightX=-fz,rightZ=fx;
@@ -360,20 +347,21 @@ function updatePhysics(dt){
   c.handbrakeGrip=lerp(c.handbrakeGrip||0,slide?1:0,clamp(dt*(slide?9:5),0,1));
   // The absolute limit stays at 200 km/h. Off-road has a lower sustainable
   // throttle target, but crossing the road edge cannot instantly erase speed.
-  const max=Math.min(MAX_SPEED_MS,config.max);
-  const throttleTarget=offroad?max*(config.id==='buggy'?.92:.84):max;
+  const max=Math.min(MAX_SPEED_MS,config.maxKmh/3.6);
+  const throttleTarget=offroad?max*config.offroadTarget:max;
   const usingNitro=stepNitro(state.nitro,dt,{
     wantBoost:shift&&gas&&!reverse&&!brake&&forward>-.5&&forward<throttleTarget-1,
     drift:slide,
     speedKmh:speed*3.6,
-    slipDegrees:Math.abs(Math.atan2(lateral,Math.max(2,Math.abs(forward)))*180/Math.PI)
+    slipDegrees:Math.abs(Math.atan2(lateral,Math.max(2,Math.abs(forward)))*180/Math.PI),
+    drainMultiplier:config.nitroDrain,chargeMultiplier:config.nitroCharge
   }).active;
   let engineForce=0;
   if(gas&&forward<throttleTarget){
     // Slower, nonlinear torque: acceleration falls away progressively near 200 km/h.
     const progress=clamp(Math.max(0,forward)/max,0,1);
     const torque=0.08+0.92*Math.pow(Math.max(0,1-progress*progress),1.42);
-    const force=config.accel*(usingNitro?1.75:1)*(offroad?(config.id==='buggy'?.96:.80):1)*torque;
+    const force=config.accel*(usingNitro?config.nitroPower:1)*(offroad?config.offroadPower:1)*torque;
     engineForce=force;
     c.vx+=fx*force*dt;c.vz+=fz*force*dt;
   }
@@ -384,7 +372,7 @@ function updatePhysics(dt){
   if(brake){
     // Space by itself stops the car. With steering, rear grip breaks away,
     // while lighter longitudinal braking preserves momentum through the turn.
-    const deceleration=slide?5.5:26;
+    const deceleration=slide?config.handbrake:config.braking;
     const b=Math.min(Math.abs(forward),deceleration*grip*dt)*Math.sign(forward);
     c.vx-=fx*b;c.vz-=fz*b;
   }
@@ -405,7 +393,7 @@ function updatePhysics(dt){
     // A grippy tire steers velocity as well as cancelling lateral slip.
     // Retain some of that directional energy, instead of treating every
     // normal corner as heavy braking. Handbrake slides still shed speed.
-    const energyRetention=lerp(.83,.08,c.handbrakeGrip);
+    const energyRetention=lerp(config.turnRetention,.08,c.handbrakeGrip);
     const retainedSpeed=speedAfterTireForce+
       Math.max(0,speedBeforeTireForce-speedAfterTireForce)*energyRetention;
     const factor=retainedSpeed/speedAfterTireForce;
@@ -444,9 +432,10 @@ function updatePhysics(dt){
   if(state.drift&&Math.random()<dt*45)spawnDust(c.x-newFx*2,c.z-newFz*2,c.y,offroad);
   state.elapsed+=dt;
   if(state.elapsed-state.lastSample>.075){state.ghostSamples.push({t:state.elapsed-state.lapStart,x:c.x,z:c.z,yaw:c.yaw});state.lastSample=state.elapsed;}
-  if(state.nextGate===0){
-    if(gateCrossed(gates[0],oldx,oldz,c.x,c.z)){state.nextGate=1;state.passed=0;completeLap();}
-  }else checkGates(oldx,oldz);
+  const lapUpdate=updateLapTracker(state.lapTracker,oldx,oldz,c.x,c.z,
+    nearestRoad(c.x,c.z),state.elapsed-state.lapStart);
+  state.courseProgress=lapUpdate.progress;
+  if(lapUpdate.completed)completeLap();
 }
 const dustGeo=new THREE.BoxGeometry(.62,.62,.62);
 const dustMat=new THREE.MeshBasicMaterial({color:0xd1bc91,transparent:true,opacity:.65,depthWrite:false});
@@ -523,7 +512,7 @@ function updateHud(){
     const diff=state.elapsed-state.lapStart-old;
     delta.textContent='LAP PB '+(diff>=0?'+':'-')+formatTime(Math.abs(diff));
     delta.className=diff<=0?'split-good':'split-bad';
-  }else {delta.textContent='PASS ALL 3 CHECKPOINTS';delta.className='split-neutral';}
+  }else {delta.textContent='START / FINISH ONLY · '+Math.round(state.courseProgress*100)+'%';delta.className='split-neutral';}
 }
 function renderMinimap(){
   if(!mctx||!roadSamples.length)return;
@@ -532,7 +521,7 @@ function renderMinimap(){
   mctx.strokeStyle='#bc9d75';mctx.lineWidth=7;mctx.beginPath();
   roadSamples.forEach((p,i)=>{const x=w/2+p.x*scale,y=h/2+p.z*scale;if(i===0)mctx.moveTo(x,y);else mctx.lineTo(x,y);});mctx.closePath();mctx.stroke();
   mctx.strokeStyle='#f3e4c5';mctx.lineWidth=1.2;mctx.stroke();
-  gates.forEach((g,i)=>{mctx.fillStyle=i===0?'#f5c75c':'#79d3c4';mctx.fillRect(w/2+g.x*scale-2,h/2+g.z*scale-2,4,4);});
+  const start=roadSamples[0];mctx.fillStyle='#f5c75c';mctx.fillRect(w/2+start.x*scale-3,h/2+start.z*scale-3,6,6);
   const c=state.car;
   if(c){mctx.save();mctx.translate(w/2+c.x*scale,h/2+c.z*scale);mctx.rotate(-c.yaw);mctx.fillStyle='#fa7358';mctx.beginPath();mctx.moveTo(0,-7);mctx.lineTo(-5,5);mctx.lineTo(5,5);mctx.closePath();mctx.fill();mctx.restore();}
 }
