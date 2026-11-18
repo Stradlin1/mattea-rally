@@ -8,12 +8,13 @@ const lerp = (a,b,t) => a+(b-a)*t;
 const TAU = Math.PI*2;
 const MAX_SPEED_KMH = 200;
 const MAX_SPEED_MS = MAX_SPEED_KMH / 3.6;
-const RECORD_VERSION = 'mattea-rally-v6';
+const RECORD_VERSION = 'mattea-rally-v7';
+const BUILD_LABEL = 'V0.7';
 const CARS = [
-  {id:'classic',name:'CLASSIC GT',detail:'平衡 · 经典拉力',color:0xe45b45,accel:9.1,max:MAX_SPEED_MS,grip:6.8,steer:1.00,drift:.48},
-  {id:'awd',name:'AWD TURBO',detail:'四驱 · 强抓地力',color:0x4d95d4,accel:9.6,max:MAX_SPEED_MS,grip:8.7,steer:.92,drift:.30},
-  {id:'rwd',name:'DRIFT COUPE',detail:'后驱 · 灵活甩尾',color:0xe9be5a,accel:10.0,max:MAX_SPEED_MS,grip:6.0,steer:1.15,drift:.66},
-  {id:'buggy',name:'DIRT BUGGY',detail:'越野 · 复杂地形',color:0x7bd19a,accel:9.3,max:MAX_SPEED_MS,grip:7.0,steer:.97,drift:.54}
+  {id:'classic',name:'CLASSIC GT',detail:'平衡 · 经典拉力',color:0xe45b45,accel:9.8,max:MAX_SPEED_MS,grip:6.8,steer:1.00,drift:.48},
+  {id:'awd',name:'AWD TURBO',detail:'四驱 · 强抓地力',color:0x4d95d4,accel:10.3,max:MAX_SPEED_MS,grip:8.7,steer:.92,drift:.30},
+  {id:'rwd',name:'DRIFT COUPE',detail:'后驱 · 灵活甩尾',color:0xe9be5a,accel:10.8,max:MAX_SPEED_MS,grip:6.0,steer:1.15,drift:.66},
+  {id:'buggy',name:'DIRT BUGGY',detail:'越野 · 复杂地形',color:0x7bd19a,accel:10.0,max:MAX_SPEED_MS,grip:7.0,steer:.97,drift:.54}
 ];
 const WEATHER = [
   {id:'clear',name:'晴天',grip:1,fog:1},
@@ -43,6 +44,31 @@ let raceTrack=null,roadSamples=[],gates=[],terrainMesh=null,roadMesh=null,carGro
 const hud=$('hud'),menu=$('menu'),pauseEl=$('pause'),results=$('results');
 const tmpVec=new THREE.Vector3();
 const mctx=$('minimap').getContext('2d');
+// F3 diagnostic overlay. It lets players distinguish old cached builds,
+// off-road restrictions, braking and lateral-speed loss while testing.
+const telemetryBox=document.createElement('div');
+telemetryBox.id='driving-telemetry';
+telemetryBox.hidden=true;
+telemetryBox.style.cssText='position:fixed;z-index:9;top:9px;left:50%;transform:translateX(-50%);padding:10px 14px;min-width:230px;white-space:pre;pointer-events:none;border:1px solid #80d9c2;background:#0a1824df;color:#e6f6ed;font:12px/1.65 Consolas,monospace;text-shadow:1px 1px #000;';
+document.body.appendChild(telemetryBox);
+const menuFooter=document.querySelector('.menu-footer');
+if(menuFooter)menuFooter.textContent+='  ·  BUILD '+BUILD_LABEL;
+const controlsFooter=document.querySelector('.hud-controls');
+if(controlsFooter)controlsFooter.textContent+='  ·  F3 TELEMETRY  ·  '+BUILD_LABEL;
+let driveTelemetry={surface:'GRAVEL',throttleTarget:200,requested:false,engine:0,steerLoss:0,kmh:0};
+function updateTelemetry(){
+  if(telemetryBox.hidden)return;
+  const d=driveTelemetry;
+  telemetryBox.textContent='MATTEA RALLY '+BUILD_LABEL+'\\n'+
+    'SPEED    '+d.kmh.toFixed(0)+' km/h\\n'+
+    'SURFACE  '+d.surface+'\\n'+
+    'W / GAS  '+(d.requested?'ON':'OFF')+'\\n'+
+    'ENGINE   '+d.engine.toFixed(1)+' m/s²\\n'+
+    'TARGET   '+d.throttleTarget.toFixed(0)+' km/h\\n'+
+    'TURN LOSS '+d.steerLoss.toFixed(2)+' m/s\\n'+
+    'SPACE + A/D: HANDBRAKE';
+}
+
 
 function recordKey(type,withLaps=false){
   const parts=[RECORD_VERSION,type,settings.track,settings.car,settings.weather];
@@ -310,12 +336,14 @@ function updatePhysics(dt){
   // The absolute limit stays at 200 km/h. Off-road has a lower sustainable
   // throttle target, but crossing the road edge cannot instantly erase speed.
   const max=Math.min(MAX_SPEED_MS,config.max);
-  const throttleTarget=offroad?max*(config.id==='buggy'?.85:.68):max;
+  const throttleTarget=offroad?max*(config.id==='buggy'?.92:.84):max;
+  let engineForce=0;
   if(gas&&forward<throttleTarget){
     // Slower, nonlinear torque: acceleration falls away progressively near 200 km/h.
     const progress=clamp(Math.max(0,forward)/max,0,1);
     const torque=0.08+0.92*Math.pow(Math.max(0,1-progress*progress),1.42);
-    const force=config.accel*(boost?1.23:1)*(offroad?(config.id==='buggy'?.88:.64):1)*torque;
+    const force=config.accel*(boost?1.23:1)*(offroad?(config.id==='buggy'?.96:.80):1)*torque;
+    engineForce=force;
     c.vx+=fx*force*dt;c.vz+=fz*force*dt;
   }
   if(reverse){
@@ -346,12 +374,15 @@ function updatePhysics(dt){
     // A grippy tire steers velocity as well as cancelling lateral slip.
     // Retain some of that directional energy, instead of treating every
     // normal corner as heavy braking. Handbrake slides still shed speed.
-    const energyRetention=lerp(.68,.08,c.handbrakeGrip);
+    const energyRetention=lerp(.83,.08,c.handbrakeGrip);
     const retainedSpeed=speedAfterTireForce+
       Math.max(0,speedBeforeTireForce-speedAfterTireForce)*energyRetention;
     const factor=retainedSpeed/speedAfterTireForce;
     c.vx*=factor;c.vz*=factor;
   }
+  driveTelemetry={surface:state.surface,throttleTarget:throttleTarget*3.6,
+    requested:gas,engine:engineForce,steerLoss:Math.max(0,speedBeforeTireForce-
+    Math.hypot(c.vx,c.vz)),kmh:state.speed};
   // V0.5 rolling/aero drag was too high: near 90 km/h it canceled most
   // available engine torque. Preserve stronger resistance only off-road.
   const drag=Math.min(.12,dt*(.008+speed*.00008+
@@ -365,6 +396,7 @@ function updatePhysics(dt){
   if(collides(nx,nz)){c.vx*=-.18;c.vz*=-.18;toast('IMPACT!',.5);}
   else {c.x=nx;c.z=nz;}
   state.speed=Math.hypot(c.vx,c.vz)*3.6;
+  driveTelemetry.kmh=state.speed;
   state.slip=Math.atan2(Math.abs(lat),Math.max(2,Math.abs(forward)))*180/Math.PI;
   state.drift=(slide||state.slip>13)&&state.speed>26;
   c.roll=lerp(c.roll,-steering*clamp(speed/35,0,1)*.12-state.slip*.001,clamp(dt*5,0,1));
@@ -459,8 +491,9 @@ function resize(){
 }
 window.addEventListener('resize',resize);resize();
 document.addEventListener('keydown',e=>{
-  if(['KeyW','KeyA','KeyS','KeyD','Space','ShiftLeft','ShiftRight','KeyC','KeyR','Escape'].includes(e.code))e.preventDefault();
+  if(['KeyW','KeyA','KeyS','KeyD','Space','ShiftLeft','ShiftRight','KeyC','KeyR','Escape','F3'].includes(e.code))e.preventDefault();
   if(e.repeat)return;
+  if(e.code==='F3'){telemetryBox.hidden=!telemetryBox.hidden;updateTelemetry();return;}
   if(e.code==='Escape'&&state.mode==='race'){setPaused(!state.paused);return;}
   if(e.code==='KeyC'&&state.mode==='race'&&!state.paused){state.camMode=(state.camMode+1)%2;toast(state.camMode?'DRIVER CAMERA':'CHASE CAMERA',.7);}
   if(e.code==='KeyR'&&state.mode==='race'&&!state.paused){startRace();toast('RACE RESTARTED',1);}
@@ -485,7 +518,7 @@ function loop(now){
     updateDust(dt);
     if(state.calloutTime>0){state.calloutTime-=dt;if(state.calloutTime<=0)$('center-callout').classList.add('hidden');}
     if(state.toastTime>0){state.toastTime-=dt;if(state.toastTime<=0)$('toast').classList.add('hidden');}
-    hudAccumulator+=dt;if(hudAccumulator>.05){updateHud();renderMinimap();hudAccumulator=0;}
+    hudAccumulator+=dt;if(hudAccumulator>.05){updateHud();renderMinimap();updateTelemetry();hudAccumulator=0;}
   }else if(state.mode==='menu'&&state.car){state.car.yaw+=dt*.13;syncCarModel();}
   updateCamera(dt);
   renderer.render(scene,camera);
