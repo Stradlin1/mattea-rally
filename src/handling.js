@@ -71,7 +71,7 @@ export function stepVehicle(car, input, vehicle, ground, dt) {
   const progress = clamp(Math.abs(forward) / softCap, 0, 1);
   // Torque/power fall away sharply as speed approaches 200 km/h.
   // At 180-195 km/h further gains take much longer than 0-100.
-  const torqueCurve = Math.pow(Math.max(0, 1 - progress * progress), 1.42);
+  const torqueCurve = .035 + .965 * Math.pow(Math.max(0, 1 - progress * progress), 1.42);
   if (input.gas && forward < softCap) {
     const boostMultiplier = input.boost && !requestSlide ? 1.23 : 1.04;
     const a = vehicle.accel * boostMultiplier * torqueCurve *
