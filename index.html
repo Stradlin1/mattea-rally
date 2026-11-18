@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#111c25">
+  <meta name="description" content="MATTEA RALLY — A pixel-style 3D rally time attack.">
+  <title>MATTEA RALLY — Pixel Time Attack</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script type="importmap">
+  {"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js"}}
+  </script>
+</head>
+<body>
+  <canvas id="game" aria-label="3D 拉力赛车游戏"></canvas>
+  <div class="scanlines" aria-hidden="true"></div>
+
+  <section id="menu" class="overlay">
+    <div class="menu-shell panel">
+      <div class="brand-eyebrow">MATTEA ARCADE / 001</div>
+      <h1>MATTEA<span> RALLY</span></h1>
+      <p class="tagline">PIXEL DRIVING // BEAT YOUR BEST</p>
+      <div class="menu-grid">
+        <div class="selection-col">
+          <h2><span class="step">01</span> VEHICLE <small>车辆</small></h2>
+          <div id="car-options" class="option-list"></div>
+          <h2><span class="step">02</span> STAGE <small>地图 · 每张赛道独立设计</small></h2>
+          <div id="track-options" class="option-list"></div>
+        </div>
+        <div class="selection-col">
+          <h2><span class="step">03</span> CONDITIONS <small>天气</small></h2>
+          <div id="weather-options" class="weather-grid"></div>
+          <h2><span class="step">04</span> RACE LENGTH <small>完赛圈数</small></h2>
+          <div class="laps-controls">
+            <button type="button" class="lap-preset" data-laps="1">1</button>
+            <button type="button" class="lap-preset active" data-laps="3">3</button>
+            <button type="button" class="lap-preset" data-laps="5">5</button>
+            <button type="button" class="lap-preset" data-laps="10">10</button>
+            <label for="laps-input" class="sr-only">自定义圈数</label>
+            <input id="laps-input" type="number" min="1" max="99" value="3" inputmode="numeric">
+            <span>LAPS</span>
+          </div>
+          <div id="menu-records" class="records-preview"></div>
+          <div class="menu-actions">
+            <button id="start-btn" class="primary" type="button">START TIME ATTACK <span>▶</span></button>
+            <p>WASD 驾驶 · SPACE 刹车 · SHIFT 加速 / 转向漂移 · C 视角</p>
+          </div>
+        </div>
+      </div>
+      <div class="menu-footer">NO LOGIN · LOCAL RECORDS · NO TRACK-SIDE WALLS</div>
+    </div>
+  </section>
+
+  <div id="hud" class="hud hidden" aria-live="off">
+    <div class="hud-top">
+      <div class="hud-card">
+        <span class="hud-label">LAP</span>
+        <strong id="lap-counter">01 / 03</strong>
+        <span class="hud-label">CURRENT LAP</span>
+        <strong id="lap-time">00:00.000</strong>
+        <span class="hud-label">RACE TIME</span>
+        <strong id="race-time" class="smaller">00:00.000</strong>
+      </div>
+      <div class="hud-card hud-right">
+        <span class="hud-label">BEST LAP</span>
+        <strong id="best-lap">--:--.---</strong>
+        <span class="hud-label">BEST RACE</span>
+        <strong id="best-race">--:--.---</strong>
+        <span id="split-delta" class="split-neutral">PASS THE CHECKPOINTS</span>
+      </div>
+    </div>
+    <div id="center-callout" class="center-callout hidden"></div>
+    <div class="hud-bottom">
+      <div class="left-bottom">
+        <canvas id="minimap" width="220" height="220" aria-label="赛道小地图"></canvas>
+        <div id="surface-indicator">GRAVEL</div>
+      </div>
+      <div class="speedo">
+        <div id="drift-indicator">GRIP</div>
+        <div class="speed-value"><strong id="speed">000</strong><span>KM/H</span></div>
+        <div class="speed-track"><div id="speed-bar"></div></div>
+        <div id="camera-indicator">CHASE CAM</div>
+      </div>
+    </div>
+    <div class="hud-controls">WASD DRIVE · SPACE BRAKE · SHIFT BOOST / DRIFT · C CAMERA · R RESTART · ESC PAUSE</div>
+  </div>
+
+  <section id="pause" class="overlay dialog-overlay hidden">
+    <div class="panel dialog">
+      <div class="brand-eyebrow">RACE PAUSED</div>
+      <h2>PAUSE<span> MENU</span></h2>
+      <p>计时已暂停，恢复后继续当前圈。</p>
+      <button id="resume-btn" class="primary">RESUME</button>
+      <button id="pause-restart-btn" class="secondary">RESTART RACE</button>
+      <button id="pause-menu-btn" class="secondary">BACK TO GARAGE</button>
+    </div>
+  </section>
+
+  <section id="results" class="overlay dialog-overlay hidden">
+    <div class="panel dialog results-dialog">
+      <div class="brand-eyebrow">FINISH / OFFICIAL RESULTS</div>
+      <h2>RACE<span> COMPLETE</span></h2>
+      <div id="pb-banner" class="pb-banner hidden">NEW PERSONAL BEST</div>
+      <div class="result-summary">
+        <div><small>TOTAL TIME</small><strong id="result-total">--:--.---</strong></div>
+        <div><small>BEST LAP</small><strong id="result-best-lap">--:--.---</strong></div>
+      </div>
+      <div id="result-laps" class="result-laps"></div>
+      <div id="result-note" class="result-note"></div>
+      <button id="again-btn" class="primary">RACE AGAIN</button>
+      <button id="results-menu-btn" class="secondary">BACK TO GARAGE</button>
+    </div>
+  </section>
+
+  <div id="toast" class="toast hidden"></div>
+  <div id="error" class="error hidden" role="alert"></div>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
