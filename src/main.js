@@ -10,7 +10,7 @@ const lerp = (a,b,t) => a+(b-a)*t;
 const TAU = Math.PI*2;
 const MAX_SPEED_KMH = 200;
 const MAX_SPEED_MS = MAX_SPEED_KMH / 3.6;
-const RECORD_VERSION = 'mattea-rally-v3';
+const RECORD_VERSION = 'mattea-rally-v4';
 const CARS = [
   {id:'classic',name:'CLASSIC GT',detail:'平衡 · 经典拉力',color:0xe45b45,accel:6.7,max:MAX_SPEED_MS,grip:7.5,steer:1.00,slideKick:1.05,offroadCap:.70,offroadPower:.72},
   {id:'awd',name:'AWD TURBO',detail:'四驱 · 强抓地力',color:0x4d95d4,accel:7.2,max:MAX_SPEED_MS,grip:8.7,steer:.93,slideKick:.82,offroadCap:.73,offroadPower:.74},
