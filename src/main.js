@@ -22,7 +22,7 @@ const WEATHER = [
 ];
 const settings={car:'classic',track:'pine',weather:'clear',laps:3};
 const KEY=new Set();
-const state={mode:'menu',paused:false,elapsed:0,lapStart:0,lap:1,lapTimes:[],passed:0,nextGate:1,lastGateDistance:0,car:null,model:null,camMode:0,drift:false,speed:0,slip:0,recordLap:null,recordRace:null,ghostSamples:[],ghostBest:[],lastSample:0,surface:'GRAVEL',weatherTime:0,calloutTime:0,toastTime:0};
+const state={mode:'menu',paused:false,elapsed:0,lapStart:0,lap:1,lapTimes:[],passed:0,nextGate:1,lastGateDistance:0,anyNewLapPB:false,car:null,model:null,camMode:0,drift:false,speed:0,slip:0,recordLap:null,recordRace:null,ghostSamples:[],ghostBest:[],lastSample:0,surface:'GRAVEL',weatherTime:0,calloutTime:0,toastTime:0};
 const canvas=$('game');
 const renderer=new THREE.WebGLRenderer({canvas,antialias:false,powerPreference:'high-performance'});
 renderer.setPixelRatio(1);
@@ -213,7 +213,7 @@ function resetCar(full=false){
   // In this coordinate convention the car forward is local -Z.
   c.yaw=Math.atan2(-p.tx,-p.tz);
   state.drift=false;state.slip=0;state.speed=0;state.surface='GRAVEL';
-  if(full){state.elapsed=0;state.lapStart=0;state.lap=1;state.passed=0;state.lapTimes=[];state.ghostSamples=[];state.lastSample=0;state.lastGateDistance=0;}
+  if(full){state.elapsed=0;state.lapStart=0;state.lap=1;state.passed=0;state.lapTimes=[];state.ghostSamples=[];state.lastSample=0;state.lastGateDistance=0;state.anyNewLapPB=false;}
   syncCarModel();
 }
 function syncCarModel(){
@@ -261,10 +261,10 @@ function completeLap(){
   const lapRecord=getRecord('best-lap',false);
   let newLapPB=false;
   if(!lapRecord||lapTime<lapRecord.time){
-    newLapPB=true;setRecord('best-lap',false,{time:lapTime,ghost:state.ghostSamples.slice(),date:new Date().toISOString()});
+    newLapPB=true;state.anyNewLapPB=true;setRecord('best-lap',false,{time:lapTime,ghost:state.ghostSamples.slice(),date:new Date().toISOString()});
     state.recordLap=getRecord('best-lap',false);state.ghostBest=state.recordLap.ghost;
   }
-  if(state.lap>=settings.laps){finishRace(newLapPB);return;}
+  if(state.lap>=settings.laps){finishRace(state.anyNewLapPB);return;}
   state.lap++;state.lapStart=state.elapsed;state.passed=0;state.nextGate=1;
   state.ghostSamples=[];state.lastSample=0;
   showCallout(newLapPB?'NEW LAP PB!':'LAP '+(state.lap-1)+' COMPLETE',1.5);
