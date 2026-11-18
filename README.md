@@ -59,6 +59,15 @@ Open http://localhost:8000. Opening `index.html` directly with `file://` may blo
 - Kept the wider circuits, 200 km/h speed limit, gradual nonlinear acceleration and driver's-seat cockpit view.
 - PB namespace is now `mattea-rally-v5` because vehicle dynamics were changed. Earlier records remain in localStorage.
 
+## V0.6 — Engine and corner-speed tuning / 动力与弯道速度调整
+
+- Upgraded the four vehicles' mid-range engine acceleration (Classic GT 9.1, AWD Turbo 9.6, Drift Coupe 10.0, Dirt Buggy 9.3 m/s² base acceleration).
+- Reduced excessive rolling/aerodynamic drag that previously offset engine force around 90 km/h.
+- Normal cornering now retains a portion of lateral correction energy, so ordinary steering does not behave like heavy braking. Handbrake drifting still sheds significantly more speed.
+- Reduced the abrupt off-road speed clamp: entering grass/snow/sand reduces sustainable throttle speed and increases drag, rather than instantly cutting current speed.
+- The 200 km/h hard cap, nonlinear high-speed torque drop, classic V0.2 car model, planted steering behavior and A/D + Space handbrake remain.
+- Changed the best-time namespace to `mattea-rally-v6` because performance changes make earlier PBs incomparable.
+
 ## Current prototype / 当前原型
 
 - Four tunable cars: Classic GT, AWD Turbo, Drift Coupe, Dirt Buggy.
