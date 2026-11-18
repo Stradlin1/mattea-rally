@@ -39,7 +39,7 @@ export function stepVehicle(car, input, vehicle, ground, dt) {
     // outward lateral kick. Steering alone would merely rotate the model.
     const kick = steer * clamp(oldSpeed / 65, .20, .46);
     car.yawRate += kick;
-    const outwardX = Math.cos(car.yaw), outwardZ = -Math.sin(car.y);
+    const outwardX = Math.cos(car.yaw), outwardZ = -Math.sin(car.yaw);
     const outward = steer * clamp(oldSpeed * .12, 1.1, 3.8) * vehicle.slideKick;
     car.vx += outwardX * outward;
     car.vz += outwardZ * outward;
