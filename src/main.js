@@ -273,7 +273,7 @@ function finishRace(newLapPB){
 }
 function collides(nx,nz){
   if(Math.abs(nx)>490||Math.abs(nz)>490)return true;
-  for(const obstacle of decor){const dx=nx-obstacle.x,dz=nz-obstacle.z;if(dx*dx+dz*dz<(obstacle.r+1.25)**2)return true;}
+  for(const obstacle of decor){const dx=nx-obstacle.x,dz=nz-obstacle.z;if(dx*dx+dz*dz<(obstacle.r+1.65)**2)return true;}
   return false;
 }
 function updatePhysics(dt){
@@ -340,17 +340,23 @@ function updateCamera(dt){
   const fx=-Math.sin(c.yaw),fz=-Math.cos(c.yaw),y=terrainY(c.x,c.z);
   const rightX=-fz,rightZ=fx;
   const driver=state.camMode===1 && state.mode!=='menu';
-  // Driver's eye is behind the windscreen, offset to the left seat.
+  // During a slide, chase the direction of travel rather than the nose.
+  // This exposes the body's sideways attitude instead of hiding it.
+  const vmag=Math.hypot(c.vx,c.vz);
+  const chaseBlend=clamp((c.driftBlend||0)*.60+state.slip/80,0,.72);
+  const trackFx=vmag>3?lerp(fx,c.vx/vmag,chaseBlend):fx;
+  const trackFz=vmag>3?lerp(fz,c.vz/vmag,chaseBlend):fz;
+  // Third-person camera is closer so the new 6.3 m body fills more pixels.
   const desired=driver
     ? new THREE.Vector3(c.x+fx*.46-rightX*.63,y+2.37,c.z+fz*.46-rightZ*.63)
-    : new THREE.Vector3(c.x-fx*14.2,y+7.9,c.z-fz*14.2);
+    : new THREE.Vector3(c.x-trackFx*11.2,y+6.35,c.z-trackFz*11.2);
   if(state.mode==='menu')desired.set(c.x+15,y+10,c.z+19);
   const k=clamp(dt*(driver?17:5),0,1);
   camera.position.lerp(desired,k);
   const look=new THREE.Vector3(
-    c.x+fx*(driver?40:13)-(driver?rightX*.63:0),
+    c.x+(driver?fx*40:trackFx*11)-(driver?rightX*.63:0),
     y+(driver?2.28:2.15),
-    c.z+fz*(driver?40:13)-(driver?rightZ*.63:0)
+    c.z+(driver?fz*40:trackFz*11)-(driver?rightZ*.63:0)
   );
   if(state.mode==='menu')look.set(c.x,y+1.2,c.z);
   camTarget.lerp(look,k);
