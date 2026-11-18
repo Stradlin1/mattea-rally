@@ -10,3 +10,16 @@
 #nitro-hint{font-size:9px;letter-spacing:.025em;color:#8baec2;margin-top:6px}
 @keyframes nitro-pulse{from{filter:brightness(1)}to{filter:brightness(1.32)}}
 @media(max-width:730px){.nitro-header{font-size:9px;margin-top:8px}.nitro-header strong{font-size:11px}#nitro-mode{font-size:8px}#nitro-hint{font-size:7px}.nitro-shell{height:9px}}
+
+/* Original procedural rally audio controls: compact, keyboard-friendly. */
+.audio-controls{margin-bottom:12px;padding:11px 12px;background:#091a24d9;border:1px solid #3b5b66;display:grid;gap:9px}
+.audio-heading{display:flex;justify-content:space-between;gap:10px;align-items:center;font-size:10px;letter-spacing:.12em;color:var(--teal)}
+#audio-status{font-size:9px;letter-spacing:0;color:#9cb3c0}
+.audio-switches{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.audio-toggle{background:#243741;border:1px solid #607781;padding:8px 10px;color:#dae9e8;font-size:10px;font-weight:800;min-width:86px}
+.audio-toggle[aria-pressed="false"]{color:#9bafb9;border-color:#3d515a;background:#182831}
+.audio-toggle[aria-pressed="true"]{border-color:#78d3bc;color:#b4f7dc}
+.audio-volume{display:flex;align-items:center;gap:6px;flex:1;min-width:130px;color:#a2ced8;font-size:10px}
+.audio-volume input{min-width:70px;width:100%;height:16px;accent-color:#76d5bd;cursor:pointer}
+.audio-volume output{min-width:30px;text-align:right;color:var(--light)}
+@media(max-width:730px){.audio-controls{padding:8px}.audio-switches{gap:6px}.audio-toggle{font-size:9px;min-width:78px;padding:7px}}
