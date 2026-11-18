@@ -51,14 +51,13 @@ Open http://localhost:8000. Opening `index.html` directly with `file://` may blo
 - **C changes between chase camera and a driver's-seat cockpit view**, including an animated steering wheel, dashboard gauges and windscreen frame. The steering wheel follows steering input; no driver arms or hands are rendered.
 - Because driving physics and circuit geometry were changed, PB records now use version `mattea-rally-v2`. Previous V0.1 records remain in browser storage, but do not appear in new rankings.
 
-## V0.3 handling and visuals / 操控与车辆升级
+## V0.5 — Classic car and handling restored / 经典车模与手感回退
 
-- Larger 3.1 m × 6.3 m low-poly rally car, with sloped glass, layered bodywork, wider fenders, rims, lights, spoiler, hood scoop and rally decals.
-- The chase camera sits closer to the body and follows the *movement vector* during a drift, making the car's sideways attitude visible.
-- Track widths: Pine Valley **26 m**, Frost Ridge **24 m**, Red Canyon **29 m**. Track layouts and checkpoint rules remain intact.
-- Nonlinear speed response: gradually decreasing available torque toward **200 km/h**, with a slower high-speed build and a hard speed limit. Shift only boosts acceleration; **A/D + Space** initiates a handbrake drift.
-- Drifting now simulates lateral velocity, progressive tire grip loss, a rear-axle breakaway impulse, yaw inertia and grip recovery. Holding Space alone brakes normally; with A/D it triggers a handbrake slide with lighter longitudinal braking. Different vehicles have separate drift-kick values.
-- The improved vehicle physics and wider course geometry use PB namespace `mattea-rally-v4` to prevent comparing incompatible records; older local records are not erased.
+- Restored the original V0.2 compact low-poly car, including its body, wheels, cabin and spoiler.
+- Restored V0.2's more planted lateral traction and direct steering model. Removed the V0.3 rear-axle kick, persistent yaw inertia and velocity-oriented chase camera.
+- **Controls retained:** A/D + Space initiates handbrake drift; Space alone brakes; Shift only boosts acceleration.
+- Kept the wider circuits, 200 km/h speed limit, gradual nonlinear acceleration and driver's-seat cockpit view.
+- PB namespace is now `mattea-rally-v5` because vehicle dynamics were changed. Earlier records remain in localStorage.
 
 ## Current prototype / 当前原型
 
@@ -66,7 +65,7 @@ Open http://localhost:8000. Opening `index.html` directly with `file://` may blo
 - Three distinct looping tracks: Pine Valley, Frost Ridge, Red Canyon.
 - Clear, rain and fog handling and visibility settings.
 - Traversable off-road terrain and physical collision responses around trees, rocks and the outer world edge.
-- Arcade velocity-based drift, dust, camera switching, speedometer, minimap and split checkpoint prompts.
+- Arcade grip-based handbrake drift, dust, camera switching, speedometer, minimap and split checkpoint prompts.
 - Low-resolution WebGL rendering enlarged with nearest-neighbor sampling for a retro pixelated look.
 
 **Prototype limitations:** Vehicle physics are still arcade-style (custom lateral-slip and yaw dynamics), not a full tire/suspension rigid-body simulation. The cockpit has a simplified low-poly dashboard rather than a fully furnished interior. Weather effects presently alter fog/traction rather than having fully rendered rain particle systems. Best-lap ghost samples are stored for future replay support but not displayed yet. These are planned improvements, not completed features.
