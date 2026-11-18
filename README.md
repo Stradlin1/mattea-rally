@@ -33,6 +33,8 @@ Open http://localhost:8000. Opening `index.html` directly with `file://` may blo
 | C | Switch chase / driver camera / 切换视角 |
 | R | Restart the entire race / 重开比赛 |
 | Esc | Pause / 暂停 |
+| M | Toggle BGM / 开关背景音乐 |
+| N | Toggle engine SFX / 开关引擎及驾驶音效 |
 
 ## Rules / 赛制
 
@@ -101,6 +103,15 @@ Open http://localhost:8000. Opening `index.html` directly with `file://` may blo
   - Red Canyon: red-rock arch, desert encampment and cacti.
 - Repeated small scenery meshes are GPU-instanced to reduce draw calls; decorative roadside items are non-blocking, so no invisible walls are introduced.
 - Previous PB records remain stored; `mattea-rally-v10` starts a fresh ranking because the course validation and car balance changed.
+
+## V1.1 — Original music and engine audio / 原创音乐与引擎音效
+
+- Added an **original, procedurally synthesized 8-bit BGM** with square-wave melody, bass, kick, snare and hi-hat. No third-party audio files, external music services or copyrighted songs are used.
+- Engine audio responds to vehicle speed, throttle, approximate gear changes, nitro activation and different car types. Tire noise appears during drifting; nitro adds an exhaust hiss.
+- The garage includes **BGM ON/OFF**, **ENGINE ON/OFF** and **master volume** controls. Preferences are saved in localStorage; **M** toggles music and **N** toggles engine sound without affecting driving controls.
+- Audio starts only after clicking **START TIME ATTACK** or deliberately using the audio controls, in accordance with browser autoplay restrictions.
+- Engine and tire/nitro audio mute on pause and race finish. Music continues in the garage/finish screen when enabled, and pauses during a race pause.
+- Music and engine synthesis run with the Web Audio API and do not affect racing physics or best-time records.
 
 ## Current prototype / 当前原型
 
