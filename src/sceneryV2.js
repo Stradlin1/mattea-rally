@@ -238,7 +238,7 @@ export function populateScenery(world,{track,roadSamples,terrainY,nearestRoad,ha
     box(gantry,trim,[1.54,.40,1.45],[localX,9.1,0]);
   }
   box(gantry,mat(0x293b43),[track.width+8,2.7,.82],[0,11.2,0]);
-  const header=mesh(gantry,new THREE.PlaneGeometry(10.8,2.35),
+  const header=mesh(gantry,new THREE.PlaneGeometry(track.width+6.8,2.35),
     stageBanner('MATTEA RALLY',track.name,theme.trim),[0,11.2,-.46]);
   header.material.side=THREE.DoubleSide;
 

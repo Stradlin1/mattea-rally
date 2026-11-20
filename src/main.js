@@ -6,6 +6,8 @@ import { CARS } from './cars.js';
 import { createLapTracker, updateLapTracker } from './lap.js';
 import { populateScenery } from './sceneryV2.js';
 import { createRallyVehicle } from './vehicleVisuals.js';
+import { createSurfaceTexture, addSkyAtmosphere, addCarContactShadow, createWeatherParticles } from './sceneArt.js';
+import { addTracksideDetails } from './trackDetails.js';
 import { RallyAudio } from './audio.js';
 
 const $ = (id) => document.getElementById(id);
@@ -15,7 +17,7 @@ const TAU = Math.PI*2;
 const MAX_SPEED_KMH = 200;
 const MAX_SPEED_MS = MAX_SPEED_KMH / 3.6;
 const RECORD_VERSION = 'mattea-rally-v10';
-const BUILD_LABEL = 'V1.2 VISUAL';
+const BUILD_LABEL = 'V1.3 ART';
 const WEATHER = [
   {id:'clear',name:'晴天',grip:1,fog:1},
   {id:'rain',name:'雨天',grip:.77,fog:.82},
@@ -28,6 +30,8 @@ const canvas=$('game');
 const renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'});
 renderer.setPixelRatio(1);
 renderer.outputColorSpace=THREE.SRGBColorSpace;
+renderer.toneMapping=THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure=1.22;
 renderer.shadowMap.enabled=false;
 const scene=new THREE.Scene();
 scene.background=new THREE.Color(0x91a8ac);
@@ -42,6 +46,7 @@ let exhaustFlames=[];
 const dust=[];
 const decor=[];
 let raceTrack=null,roadSamples=[],terrainMesh=null,roadMesh=null,carGroup=null,camTarget=new THREE.Vector3();
+let carShadow=null,weatherVisual=null;
 const hud=$('hud'),menu=$('menu'),pauseEl=$('pause'),results=$('results');
 const tmpVec=new THREE.Vector3();
 const mctx=$('minimap').getContext('2d');
@@ -130,7 +135,7 @@ document.querySelectorAll('.lap-preset').forEach(b=>b.addEventListener('click',(
 $('laps-input').addEventListener('input',(event)=>{const n=Number(event.target.value);if(Number.isInteger(n)&&n>=1&&n<=99){settings.laps=n;renderMenu();}});
 function clearWorld(){
   while(world.children.length){const item=world.children[0];world.remove(item);item.traverse(obj=>{obj.geometry?.dispose();if(obj.material){const mats=Array.isArray(obj.material)?obj.material:[obj.material];mats.forEach(m=>{m.map?.dispose();m.dispose();});}});}
-  dust.length=0;decor.length=0;wheelMeshes.length=0;exhaustFlames=[];carGroup=null;
+  dust.length=0;decor.length=0;wheelMeshes.length=0;exhaustFlames=[];carGroup=null;carShadow=null;weatherVisual=null;
 }
 function hash(x,z,s){const f=Math.sin(x*127.1+z*311.7+s*74.7)*43758.5453;return f-Math.floor(f);}
 function hills(x,z,seed){return Math.sin(x*.011+seed)*Math.cos(z*.013-seed)*4.8+Math.sin(x*.032+z*.016+seed)*1.65+Math.cos(z*.041-x*.027)*.8;}
@@ -151,7 +156,7 @@ function nearestRoad(x,z){
   return {index:nearest,d:Math.sqrt(best),p:roadSamples[nearest]};
 }
 function createRoad(){
-  const verts=[],cols=[],index=[],half=currentTrack().width*.5,n=roadSamples.length;
+  const verts=[],cols=[],uvs=[],index=[],half=currentTrack().width*.5,n=roadSamples.length;
   const base=new THREE.Color(currentTrack().road);
   for(let i=0;i<=n;i++){
     const p=roadSamples[i%n],nx=-p.tz,nz=p.tx;
@@ -160,13 +165,20 @@ function createRoad(){
       verts.push(x,terrainY(x,z)+.12,z);
       const k=.95+.06*Math.sin(i*.8+side);
       cols.push(base.r*k,base.g*k,base.b*k);
+      uvs.push((side+1)*.5,i/14);
     }
     if(i<n){const a=i*2;index.push(a,a+1,a+2,a+1,a+3,a+2);}
   }
   const geo=new THREE.BufferGeometry();
-  geo.setAttribute('position',new THREE.Float32BufferAttribute(verts,3));geo.setAttribute('color',new THREE.Float32BufferAttribute(cols,3));
+  geo.setAttribute('position',new THREE.Float32BufferAttribute(verts,3));
+  geo.setAttribute('color',new THREE.Float32BufferAttribute(cols,3));
+  geo.setAttribute('uv',new THREE.Float32BufferAttribute(uvs,2));
   geo.setIndex(index);geo.computeVertexNormals();
-  roadMesh=new THREE.Mesh(geo,new THREE.MeshLambertMaterial({vertexColors:true,side:THREE.DoubleSide}));world.add(roadMesh);
+  const roadMaterial=new THREE.MeshLambertMaterial({
+    vertexColors:true,map:createSurfaceTexture(currentTrack().id,'road'),
+    side:THREE.DoubleSide
+  });
+  roadMesh=new THREE.Mesh(geo,roadMaterial);world.add(roadMesh);
   // Surface dressing is purely visual. Actual road width / grip are unchanged.
   if(currentTrack().id==='snow'){
     const strips=new THREE.Group();
@@ -265,16 +277,21 @@ function addRock(x,z,scale,seed){
 }
 function buildTerrain(){
   const tr=currentTrack(),size=1050,seg=120;
-  const positions=[],colors=[],ids=[],base=new THREE.Color(tr.field);
+  const positions=[],colors=[],uvs=[],ids=[],base=new THREE.Color(tr.field);
   for(let zi=0;zi<=seg;zi++){for(let xi=0;xi<=seg;xi++){
     const x=(xi/seg-.5)*size,z=(zi/seg-.5)*size,y=terrainY(x,z);
-    positions.push(x,y-.16,z);const n=hash(x*.17,z*.17,tr.seed);
+    positions.push(x,y-.16,z);uvs.push(x/34,z/34);const n=hash(x*.17,z*.17,tr.seed);
     const c=base.clone().multiplyScalar(.82+n*.32);
     colors.push(c.r,c.g,c.b);
     if(xi<seg&&zi<seg){const a=zi*(seg+1)+xi,b=a+seg+1;ids.push(a,b,a+1,a+1,b,b+1);}
   }}
-  const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));geo.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));geo.setIndex(ids);geo.computeVertexNormals();
-  terrainMesh=new THREE.Mesh(geo,new THREE.MeshLambertMaterial({vertexColors:true,side:THREE.DoubleSide}));world.add(terrainMesh);
+  const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
+  geo.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));
+  geo.setAttribute('uv',new THREE.Float32BufferAttribute(uvs,2));
+  geo.setIndex(ids);geo.computeVertexNormals();
+  terrainMesh=new THREE.Mesh(geo,new THREE.MeshLambertMaterial({
+    vertexColors:true,map:createSurfaceTexture(tr.id,'ground'),side:THREE.DoubleSide
+  }));world.add(terrainMesh);
   // Thematically distinct scenery is instanced in scenery.js.
   populateScenery(world,{track:tr,roadSamples,terrainY,nearestRoad,hash});
 }
@@ -288,15 +305,29 @@ function buildCar(){
   exhaustFlames=visual.exhaustFlames;
 }
 function createWorld(){
-  clearWorld();buildCurve();buildTerrain();createRoad();buildCar();
-  const tr=currentTrack(),weather=currentWeather();scene.background=new THREE.Color(tr.sky);
+  const tr=currentTrack(),weather=currentWeather();
+  clearWorld();buildCurve();
+  addSkyAtmosphere(world,tr.id,weather.id);
+  buildTerrain();createRoad();
+  addTracksideDetails(world,{track:tr,roadSamples,terrainY,weather:weather.id});
+  buildCar();
+  carShadow=addCarContactShadow(world);
+  weatherVisual=createWeatherParticles(world,tr.id,weather.id);
+  scene.background=new THREE.Color(tr.sky);
   audio.setStage(tr.id);
   scene.fog=new THREE.FogExp2(tr.sky,weather.id==='fog'?.017:weather.id==='rain'?.0075:.0040);
-  hemi.intensity=weather.id==='rain'?1.65:2.3;sun.intensity=weather.id==='rain'?.8:2;
+  // Stage-colored lighting. Only rendering parameters change, not surface grip.
+  const desert=tr.id==='desert',snow=tr.id==='snow',rain=weather.id==='rain';
+  hemi.color.setHex(desert?0xffe3c0:snow?0xe3efff:0xd3edf4);
+  hemi.groundColor.setHex(desert?0x94735b:snow?0xa7bbc2:0x4d6651);
+  hemi.intensity=rain?1.48:1.78;
+  sun.color.setHex(desert?0xffcb96:snow?0xfff2de:0xffe4be);
+  sun.position.set(desert?-165:-115,desert?155:195,desert?120:105);
+  sun.intensity=rain?.78:2.06;
   state.car={x:0,z:0,yaw:0,vx:0,vz:0,y:0,roll:0,pitch:0,turn:0};
   state.nitro=freshNitro();
   cockpitView.update(0,0,currentCar().color);
-  resetCar(true);updateCamera(1);renderMinimap();renderer.render(scene,camera);
+  resetCar(true);updateCamera(1);weatherVisual.update(state.car,0);renderMinimap();renderer.render(scene,camera);
 }
 function resetCar(full=false){
   const p=roadSamples[roadSamples.length-9],c=state.car;
@@ -313,6 +344,11 @@ function syncCarModel(){
   carGroup.position.set(c.x,terrainY(c.x,c.z)+.32,c.z);
   carGroup.rotation.set(c.pitch,c.yaw,c.roll,'YXZ');
   wheelMeshes.forEach(({mesh,front})=>{if(front)mesh.rotation.y=c.turn*.36;});
+  if(carShadow){
+    const roadSurface=state.surface==='GRAVEL'||state.surface==='DESERT GRAVEL'||state.surface.endsWith('ROAD');
+    carShadow.position.set(c.x,terrainY(c.x,c.z)+(roadSurface?.185:-.055),c.z);
+    carShadow.rotation.y=c.yaw;
+  }
 }
 function startRace(){
   if(!Number.isInteger(settings.laps)||settings.laps<1||settings.laps>99)return;
@@ -611,6 +647,7 @@ function loop(now){
   }else if(state.mode==='menu'&&state.car){state.car.yaw+=dt*.13;syncCarModel();}
   else if(exhaustFlames.length){exhaustFlames.forEach(flame=>flame.group.visible=false);}
   updateCamera(dt);
+  weatherVisual?.update(state.car,dt);
   audio.update({
     mode:state.mode,
     paused:state.paused,

@@ -104,6 +104,15 @@ Open http://localhost:8000. Opening `index.html` directly with `file://` may blo
 - Repeated small scenery meshes are GPU-instanced to reduce draw calls; decorative roadside items are non-blocking, so no invisible walls are introduced.
 - Previous PB records remain stored; `mattea-rally-v10` starts a fresh ranking because the course validation and car balance changed.
 
+## V1.3 — Environmental art direction / 环境美术完善
+
+- Procedural tiling textures add **gravel, soil, grass, sand and snow grain** to the road and landscape. Every material is made locally with Canvas; no third-party game assets are needed.
+- A stage-specific gradient sky, sun disc, warmer/cooler directional lighting, subtle tone mapping and a soft ground-contact shadow make the low-poly car and terrain sit together more naturally.
+- Added corner chevrons, rally flags, marshals, spectator stands, tents, flowers, roadside pebbles and biome-specific color variation. Decorations remain **non-collidable** and no checkpoints or physical track walls were added.
+- Rain adds stylized precipitation and shallow roadside puddles. Snow stages display drifting snow particles when the rainy condition is selected.
+- Reduced heavy pixelated/scanline treatment and added a subtle vignette while keeping the original UI.
+- **Driving physics unchanged:** the entire `updatePhysics()` function matches V1.2, and the track layouts, car handling data, nitro and key bindings are the same.
+
 ## V1.2 — Low-poly stage and vehicle art / 场景与车模升级
 
 - The four vehicles retain their existing **handling classes and driving parameters**, but now have distinct procedural low-poly shells, wheel rims, window pillars, lamps, bumpers, liveries and car-specific rally equipment.
@@ -139,6 +148,8 @@ index.html       HTML menus, HUD, result screen
 styles.css       Retro responsive UI
 src/main.js      Game scene, road, driving physics, controls, HUD
 src/vehicleVisuals.js  New four-class procedural car bodies
+src/sceneArt.js     Procedural terrain/road materials, sky and weather effects
+src/trackDetails.js Roadside signs, spectators, props and terrain decals
 src/cars.js      Vehicle class parameters
 src/lap.js       Start/finish-only lap validation
 src/sceneryV2.js  New GPU-instanced themed landscapes and props
