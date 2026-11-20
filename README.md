@@ -35,11 +35,15 @@ Open http://localhost:8000. Opening `index.html` directly with `file://` may blo
 | Esc | Pause / 暂停 |
 | M | Toggle BGM / 开关背景音乐 |
 | N | Toggle engine SFX / 开关引擎及驾驶音效 |
+| V | Toggle Chinese co-driver voice / 开关中文路书语音 |
 
 ## Rules / 赛制
 
 - Set the race length from **1 to 99 laps**.
-- **No checkpoints:** laps register only at the start/finish line after a substantial forward traversal of the closed route. Repeated line crossings, reverse driving and implausible progress jumps do not earn laps. Off-road driving remains allowed.
+- **No checkpoints, shortcuts allowed:** You can cut across the map, drive off road, and rejoin the circuit wherever you like. Route completion percentage is **not** required. Laps count only on a forward finish-line crossing after reaching well outside the start zone, covering a meaningful total distance, and spending at least 8 seconds on the lap. Local weaving or repeated near-start line crossings do not count.
+- The new validation uses the course's scale to determine the minimum excursion and travel distance. The goal is anti-farming near start/finish, not mandatory route-following.
+- On-screen animated co-driver pace notes show turn direction, severity (1=tightest, 6=fastest), distance to the next bend, and the following corner. The browser's Chinese speech synthesis announces an approaching bend if supported. Press **V** or use the garage toggle to mute voice without hiding the notes. The guide pauses when taking a deep off-road shortcut and resumes on rejoining the course.
+- Since shortcut-enabled lap times cannot be fairly compared with earlier stricter rules, **new PB records use `mattea-rally-v11-shortcut`**. Older PB data remain in localStorage but are not displayed in the new category.
 - **Best Lap** records the fastest valid lap regardless of the total race length.
 - **Best Race** records the fastest *completed* N-lap race, separately for each N.
 - Both records are scoped by track, car and weather to keep comparisons consistent.
@@ -104,6 +108,15 @@ Open http://localhost:8000. Opening `index.html` directly with `file://` may blo
 - Repeated small scenery meshes are GPU-instanced to reduce draw calls; decorative roadside items are non-blocking, so no invisible walls are introduced.
 - Previous PB records remain stored; `mattea-rally-v10` starts a fresh ranking because the course validation and car balance changed.
 
+## V1.4 — Co-driver pace notes and shortcut-friendly timing / 路书与自由抄近路
+
+- Generates 15–16 rally corner calls for each existing stage from the actual sampled course geometry; grades 1–6 indicate bend severity.
+- Animated on-screen arrow, corner grade, distance, upcoming corner and spoken Mandarin (browser speechSynthesis when available); **V** toggles spoken calls.
+- Free cross-country shortcuts are allowed. The only timing gate is a positive start/finish crossing after a real excursion outside the start area, meaningful physical travel, and minimum lap duration. No waypoints or intermediate checkpoints.
+- Anti-farming checks reject repeated near-line crossings, reverse crossings and impossible short loops. Pace notes are advisory, not navigation or lap validity requirements.
+- Fresh local PB namespace because lap validation changed. No changes to the vehicle's acceleration, steering, grip, braking, drifting or nitro rules.
+- Run `npm test` with Node.js to check normal laps, shortcuts, anti-farming, reverse runs, speed gates, and the three maps' pacenote generation.
+
 ## V1.3 — Environmental art direction / 环境美术完善
 
 - Procedural tiling textures add **gravel, soil, grass, sand and snow grain** to the road and landscape. Every material is made locally with Canvas; no third-party game assets are needed.
@@ -136,10 +149,10 @@ Open http://localhost:8000. Opening `index.html` directly with `file://` may blo
 - Three distinct looping tracks: Pine Valley, Frost Ridge, Red Canyon.
 - Clear, rain and fog handling and visibility settings.
 - Traversable off-road terrain and physical collision responses around trees, rocks and the outer world edge.
-- Arcade grip-based handbrake drift, dust, camera switching, speedometer, minimap and split checkpoint prompts.
-- Low-resolution WebGL rendering enlarged with nearest-neighbor sampling for a retro pixelated look.
+- Arcade grip-based handbrake drift, dust, camera switching, speedometer, minimap, animated pace notes and shortcut-aware finish validation.
+- Stylized low-poly WebGL graphics, procedurally textured terrain, car contact shadow and weather particles.
 
-**Prototype limitations:** Vehicle physics are still arcade-style (custom lateral-slip and yaw dynamics), not a full tire/suspension rigid-body simulation. The cockpit has a simplified low-poly dashboard rather than a fully furnished interior. Weather effects presently alter fog/traction rather than having fully rendered rain particle systems. Best-lap ghost samples are stored for future replay support but not displayed yet. These are planned improvements, not completed features.
+**Prototype limitations:** Vehicle physics are still arcade-style (custom lateral-slip and yaw dynamics), not a full tire/suspension rigid-body simulation. The cockpit has a simplified low-poly dashboard rather than a fully furnished interior. Visual rain and snow particles are stylized rather than a physical weather simulation. Best-lap ghost samples are stored for future replay support but not displayed yet. These are planned improvements, not completed features.
 
 ## Project structure / 结构
 
@@ -151,11 +164,15 @@ src/vehicleVisuals.js  New four-class procedural car bodies
 src/sceneArt.js     Procedural terrain/road materials, sky and weather effects
 src/trackDetails.js Roadside signs, spectators, props and terrain decals
 src/cars.js      Vehicle class parameters
-src/lap.js       Start/finish-only lap validation
+src/lap.js       Start/finish-only shortcut-safe lap validation
+src/pacenotes.js Pace-note detection from track curvature
+src/paceGuide.js Animated HUD and browser Mandarin speech
 src/sceneryV2.js  New GPU-instanced themed landscapes and props
 src/scenery.js   Previous scenery implementation (legacy)
 src/nitro.js     Finite nitro and drift regeneration
 src/tracks.js    Distinct course geometry
+tests/           Unit tests for lap logic and pace notes
+package.json     Optional Node.js test runner (no runtime dependencies)
 ```
 
 ## Technology / 技术

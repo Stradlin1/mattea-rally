@@ -26,3 +26,73 @@
 
 /* V1.3 cinematic but unobtrusive edge falloff; overlays remain crisp. */
 .screen-vignette{position:fixed;inset:0;pointer-events:none;z-index:1;background:radial-gradient(ellipse at 50% 48%,transparent 38%,rgba(5,15,20,.05) 66%,rgba(4,13,18,.26) 100%)}
+
+
+/* V1.4 dynamic rally roadbook: clear turns, severity and early-warning distance. */
+.pace-panel{
+  position:absolute;top:18px;left:50%;transform:translateX(-50%);
+  width:min(286px,38vw);padding:11px 13px 10px;z-index:4;pointer-events:none;
+  border:1px solid #87cad3;border-top:3px solid #7be2c6;
+  background:linear-gradient(155deg,rgba(12,28,39,.95),rgba(12,32,39,.83));
+  box-shadow:0 12px 35px #07111d9c,inset 0 1px 0 #e4ffff20;
+  color:#eef8f4;text-shadow:1px 1px 1px #101b24;overflow:hidden;
+}
+.pace-kicker{display:flex;align-items:center;gap:7px;color:#9ef1d2;
+  font-size:10px;letter-spacing:.17em;font-weight:800}
+.pace-kicker #pace-status{margin-left:auto;color:#adbdca;font-size:9px;letter-spacing:.08em}
+.pace-live-dot{width:7px;height:7px;border-radius:50%;background:#6bffbd;
+  box-shadow:0 0 9px #7fffd188;animation:pace-beacon 1.4s infinite}
+.pace-primary{display:flex;align-items:center;gap:12px;margin-top:8px}
+.pace-arrow{display:grid;place-items:center;flex:none;width:82px;height:75px;
+  color:#f3efdf;background:#142f3e;border:1px solid #355b68;position:relative}
+.pace-arrow svg{width:68px;height:68px;filter:drop-shadow(0 2px 1px #0005);
+  transition:transform .26s ease}
+.pace-arrow.is-right svg{transform:scaleX(-1)}
+.pace-summary{flex:1;min-width:0}
+#pace-direction{font-size:13px;letter-spacing:.18em;color:#9bd8df;font-weight:900}
+.pace-numbers{display:flex;align-items:baseline;gap:9px}
+#pace-grade{font-size:58px;font-weight:1000;line-height:1.0;letter-spacing:-.08em;color:#f7d687}
+#pace-distance{font-size:13px;font-weight:900;color:#f0f5f1;white-space:nowrap}
+.pace-caption{margin:8px 0 7px;font-size:11px;line-height:1.45;white-space:normal;
+  font-weight:700;color:#ebebe0}
+.pace-progress{height:4px;background:#31505a;overflow:hidden}
+#pace-timing{height:100%;width:0;background:linear-gradient(90deg,#72c9c0,#f9cd72);
+  transition:width .18s linear}
+.pace-next{color:#9cb4c4;font-size:10px;letter-spacing:.08em;margin-top:8px;min-height:12px}
+.pace-panel.is-tight{border-top-color:#ff8d71;border-color:#aa635a}
+.pace-panel.is-tight #pace-grade{color:#ff936f}
+.pace-panel.is-tight .pace-arrow{border-color:#b56f54;background:#472d35}
+.pace-panel.is-shortcut{border-top-color:#c0c6cc;border-color:#486272}
+.pace-panel.is-shortcut #pace-grade{font-size:45px;color:#c7d9d4}
+.pace-panel.is-shortcut .pace-arrow{opacity:.65}
+.pace-panel.is-ready{border-top-color:#7faabb;opacity:.84}
+.pace-panel.is-ready .pace-arrow{opacity:.60}
+.pace-pop{animation:pace-slide-in .43s cubic-bezier(.17,.85,.30,1) both}
+.lap-validity{font-size:9px;color:#c2d2d0;letter-spacing:.04em;line-height:1.5}
+.lap-validity.ready{color:#a0ffbc}
+@keyframes pace-slide-in{
+  0%{opacity:0;transform:translate(-50%,-13px) scale(.95);filter:brightness(1.5)}
+  65%{opacity:1;transform:translate(-50%,2px) scale(1.025)}
+  100%{opacity:1;transform:translate(-50%,0) scale(1);filter:brightness(1)}
+}
+@keyframes pace-beacon{0%,100%{opacity:.55}50%{opacity:1}}
+@media(max-width:900px){
+  .pace-panel{top:96px;width:min(260px,58vw);padding:8px 10px}
+  .pace-arrow{width:65px;height:62px}.pace-arrow svg{width:58px;height:58px}
+  #pace-grade{font-size:45px}.pace-primary{gap:10px;margin-top:5px}
+  .pace-next{font-size:8px;margin-top:5px}.pace-caption{margin:5px 0;font-size:10px}
+  .pace-kicker{font-size:9px}.pace-panel.is-shortcut #pace-grade{font-size:31px}
+  .center-callout{top:38%}
+}
+@media(max-width:560px){
+  .pace-panel{top:95px;width:215px;padding:7px 9px}
+  .pace-arrow{width:53px;height:53px}.pace-arrow svg{width:48px;height:48px}
+  #pace-grade{font-size:36px}#pace-direction{font-size:10px}
+  #pace-distance{font-size:10px}.pace-primary{gap:8px}
+  .pace-caption{font-size:9px}.pace-next{font-size:8px}
+  .lap-validity{font-size:8px}
+}
+@media(prefers-reduced-motion:reduce){
+  .pace-pop,.pace-live-dot{animation:none!important}
+  .pace-arrow svg,#pace-timing{transition:none!important}
+}

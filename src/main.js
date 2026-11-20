@@ -9,6 +9,7 @@ import { createRallyVehicle } from './vehicleVisuals.js';
 import { createSurfaceTexture, addSkyAtmosphere, addCarContactShadow, createWeatherParticles } from './sceneArt.js';
 import { addTracksideDetails } from './trackDetails.js';
 import { RallyAudio } from './audio.js';
+import { PaceGuide } from './paceGuide.js';
 
 const $ = (id) => document.getElementById(id);
 const clamp = (v,a,b) => Math.max(a,Math.min(b,v));
@@ -16,8 +17,8 @@ const lerp = (a,b,t) => a+(b-a)*t;
 const TAU = Math.PI*2;
 const MAX_SPEED_KMH = 200;
 const MAX_SPEED_MS = MAX_SPEED_KMH / 3.6;
-const RECORD_VERSION = 'mattea-rally-v10';
-const BUILD_LABEL = 'V1.3 ART';
+const RECORD_VERSION = 'mattea-rally-v11-shortcut';
+const BUILD_LABEL = 'V1.4 PACENOTES';
 const WEATHER = [
   {id:'clear',name:'晴天',grip:1,fog:1},
   {id:'rain',name:'雨天',grip:.77,fog:.82},
@@ -25,7 +26,7 @@ const WEATHER = [
 ];
 const settings={car:'classic',track:'pine',weather:'clear',laps:3};
 const KEY=new Set();
-const state={mode:'menu',paused:false,elapsed:0,lapStart:0,lap:1,lapTimes:[],courseProgress:0,lapTracker:null,anyNewLapPB:false,car:null,model:null,camMode:0,drift:false,speed:0,slip:0,recordLap:null,recordRace:null,ghostSamples:[],ghostBest:[],lastSample:0,surface:'GRAVEL',weatherTime:0,calloutTime:0,toastTime:0};
+const state={mode:'menu',paused:false,elapsed:0,lapStart:0,lap:1,lapTimes:[],courseProgress:0,lapTracker:null,anyNewLapPB:false,car:null,model:null,camMode:0,drift:false,speed:0,slip:0,recordLap:null,recordRace:null,ghostSamples:[],ghostBest:[],lastSample:0,surface:'GRAVEL',weatherTime:0,calloutTime:0,toastTime:0,lastInvalidCrossTime:-99};
 const canvas=$('game');
 const renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'});
 renderer.setPixelRatio(1);
@@ -51,6 +52,7 @@ const hud=$('hud'),menu=$('menu'),pauseEl=$('pause'),results=$('results');
 const tmpVec=new THREE.Vector3();
 const mctx=$('minimap').getContext('2d');
 const audio=new RallyAudio();
+const guide=new PaceGuide();
 
 function syncAudioControls(){
   const music=$('music-toggle'),engine=$('engine-toggle');
@@ -61,6 +63,10 @@ function syncAudioControls(){
   $('audio-volume').value=String(Math.round(audio.volume*100));
   $('audio-volume-value').textContent=Math.round(audio.volume*100)+'%';
   $('audio-status').textContent=audio.unavailable?'UNAVAILABLE':audio.ctx?.state==='running'?'AUDIO READY':'START TO ENABLE';
+  const voice=$('pace-voice-toggle');
+  voice.textContent=!guide.voiceSupported?'CO-DRIVER N/A':guide.voiceEnabled?'VOICE ON [V]':'VOICE OFF [V]';
+  voice.setAttribute('aria-pressed',String(guide.voiceEnabled&&guide.voiceSupported));
+  voice.disabled=!guide.voiceSupported;
 }
 $('music-toggle').addEventListener('click',()=>{
   audio.unlock();audio.setMusicEnabled(!audio.musicOn);syncAudioControls();
@@ -70,6 +76,10 @@ $('engine-toggle').addEventListener('click',()=>{
 });
 $('audio-volume').addEventListener('input',event=>{
   audio.unlock();audio.setVolume(Number(event.target.value)/100);syncAudioControls();
+});
+$('pace-voice-toggle').addEventListener('click',()=>{
+  guide.setVoiceEnabled(!guide.voiceEnabled);
+  syncAudioControls();
 });
 syncAudioControls();
 // F3 diagnostic overlay. It lets players distinguish old cached builds,
@@ -148,6 +158,7 @@ function buildCurve(){
     roadSamples.push({x:p.x,z:p.z,y:terrainY(p.x,p.z),tx:v.x,tz:v.z,s:i/count});
   }
   state.lapTracker=createLapTracker(roadSamples,tr.width);
+  guide.setCourse(roadSamples,tr.width);
 }
 function nearestRoad(x,z){
   let nearest=0,best=Infinity;
@@ -336,7 +347,7 @@ function resetCar(full=false){
   c.yaw=Math.atan2(-p.tx,-p.tz);
   state.drift=false;state.slip=0;state.speed=0;state.surface='GRAVEL';
   state.nitro=freshNitro();exhaustFlames.forEach(flame=>flame.group.visible=false);
-  if(full){state.elapsed=0;state.lapStart=0;state.lap=1;state.courseProgress=0;state.lapTracker=createLapTracker(roadSamples,currentTrack().width);state.lapTimes=[];state.ghostSamples=[];state.lastSample=0;state.anyNewLapPB=false;}
+  if(full){state.elapsed=0;state.lapStart=0;state.lap=1;state.courseProgress=0;state.lapTracker=createLapTracker(roadSamples,currentTrack().width);state.lapTimes=[];state.ghostSamples=[];state.lastSample=0;state.anyNewLapPB=false;state.lastInvalidCrossTime=-99;guide.resetLap();}
   syncCarModel();
 }
 function syncCarModel(){
@@ -363,11 +374,11 @@ function startRace(){
 function showCallout(value,seconds=1){const el=$('center-callout');el.textContent=value;el.classList.remove('hidden');state.calloutTime=seconds;}
 function toast(value,seconds=2){$('toast').textContent=value;$('toast').classList.remove('hidden');state.toastTime=seconds;}
 function showMenu(){
-  state.mode='menu';state.paused=false;KEY.clear();syncAudioControls();hud.classList.add('hidden');pauseEl.classList.add('hidden');results.classList.add('hidden');menu.classList.remove('hidden');renderMenu();createWorld();
+  state.mode='menu';state.paused=false;KEY.clear();guide.stop();syncAudioControls();hud.classList.add('hidden');pauseEl.classList.add('hidden');results.classList.add('hidden');menu.classList.remove('hidden');renderMenu();createWorld();
 }
 function setPaused(value){
   if(state.mode!=='race')return;
-  state.paused=value;pauseEl.classList.toggle('hidden',!value);KEY.clear();lastFrame=performance.now();
+  state.paused=value;if(value)guide.stop();pauseEl.classList.toggle('hidden',!value);KEY.clear();lastFrame=performance.now();
 }
 function completeLap(){
   const lapTime=state.elapsed-state.lapStart;
@@ -381,11 +392,12 @@ function completeLap(){
   }
   if(state.lap>=settings.laps){finishRace(state.anyNewLapPB);return;}
   state.lap++;state.lapStart=state.elapsed;state.courseProgress=0;
+  guide.resetLap();
   state.ghostSamples=[];state.lastSample=0;
   showCallout(newLapPB?'NEW LAP PB!':'LAP '+(state.lap-1)+' COMPLETE',1.5);
 }
 function finishRace(newLapPB){
-  state.mode='finished';KEY.clear();
+  state.mode='finished';KEY.clear();guide.stop();
   const finishTime=state.elapsed,prior=getRecord('best-race',true);
   const racePB=!prior||finishTime<prior.time;
   if(racePB){setRecord('best-race',true,{time:finishTime,laps:state.lapTimes.slice(),date:new Date().toISOString()});state.recordRace=getRecord('best-race',true);}
@@ -511,6 +523,10 @@ function updatePhysics(dt){
     nearestRoad(c.x,c.z),state.elapsed-state.lapStart);
   state.courseProgress=lapUpdate.progress;
   if(lapUpdate.completed)completeLap();
+  else if(lapUpdate.crossedStart&&state.elapsed>3&&state.elapsed-state.lastInvalidCrossTime>3){
+    state.lastInvalidCrossTime=state.elapsed;
+    toast('LAP NOT READY · DRIVE FARTHER FROM START',1.3);
+  }
 }
 const dustGeo=new THREE.BoxGeometry(.62,.62,.62);
 const dustMat=new THREE.MeshBasicMaterial({color:0xd1bc91,transparent:true,opacity:.65,depthWrite:false});
@@ -587,7 +603,14 @@ function updateHud(){
     const diff=state.elapsed-state.lapStart-old;
     delta.textContent='LAP PB '+(diff>=0?'+':'-')+formatTime(Math.abs(diff));
     delta.className=diff<=0?'split-good':'split-bad';
-  }else {delta.textContent='START / FINISH ONLY · '+Math.round(state.courseProgress*100)+'%';delta.className='split-neutral';}
+  }else {delta.textContent='FREE ROUTE · '+Math.round(state.courseProgress*100)+'% VALID';delta.className='split-neutral';}
+  const validity=$('lap-validity');
+  const ready=!!state.lapTracker?.ready;
+  validity.textContent=ready?'LAP READY · CROSS THE FINISH':'SHORTCUTS ALLOWED · EXPLORE THE STAGE';
+  validity.classList.toggle('ready',ready);
+  if(state.mode==='race'&&state.car&&!state.paused){
+    guide.update({nearest:nearestRoad(state.car.x,state.car.z),speedKmh:state.speed,active:true});
+  }
 }
 function renderMinimap(){
   if(!mctx||!roadSamples.length)return;
@@ -609,13 +632,20 @@ function resize(){
 }
 window.addEventListener('resize',resize);resize();
 document.addEventListener('keydown',e=>{
-  if(['KeyW','KeyA','KeyS','KeyD','Space','ShiftLeft','ShiftRight','KeyC','KeyR','Escape','F3','KeyM','KeyN'].includes(e.code))e.preventDefault();
+  if(['KeyW','KeyA','KeyS','KeyD','Space','ShiftLeft','ShiftRight','KeyC','KeyR','Escape','F3','KeyM','KeyN','KeyV'].includes(e.code))e.preventDefault();
   if(e.repeat)return;
   if(e.code==='KeyM'){
     audio.unlock();audio.setMusicEnabled(!audio.musicOn);syncAudioControls();return;
   }
   if(e.code==='KeyN'){
     audio.unlock();audio.setEngineEnabled(!audio.engineOn);syncAudioControls();return;
+  }
+  if(e.code==='KeyV'){
+    if(guide.voiceSupported){
+      guide.setVoiceEnabled(!guide.voiceEnabled);syncAudioControls();
+      if(state.mode==='race'&&!state.paused)toast(guide.voiceEnabled?'CO-DRIVER VOICE ON':'CO-DRIVER VOICE OFF',1);
+    }
+    return;
   }
   if(e.code==='F3'){telemetryBox.hidden=!telemetryBox.hidden;updateTelemetry();return;}
   if(e.code==='Escape'&&state.mode==='race'){setPaused(!state.paused);return;}

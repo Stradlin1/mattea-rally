@@ -1,63 +1,65 @@
-// Start/finish-only lap timing. No checkpoint or waypoint objects exist.
-// A full signed course traversal plus a forward line crossing validates a lap.
-// Projected progress permits reasonable off-road shortcuts while preventing
-// repeated back-and-forth crossings of the start line.
+// Start/finish lap validation without checkpoints or mandatory course progress.
+// Any shortcut is legal. Only a real excursion away from the start area plus
+// meaningful physical travel and a forward finish-line crossing count a lap.
+const clamp=(value,lo,hi)=>Math.max(lo,Math.min(hi,value));
+
 export function createLapTracker(samples, roadWidth, startIndex = samples.length - 9) {
   if (!Array.isArray(samples) || samples.length < 8) {
     throw new Error('A closed circuit with at least 8 samples is required');
   }
-  let length = 0;
-  for (let i = 0; i < samples.length; i++) {
-    const a = samples[i], b = samples[(i + 1) % samples.length];
-    length += Math.hypot(a.x-b.x,a.z-b.z);
+  let lapLength=0,maxStartDistance=0;
+  const start=samples[0];
+  for(let i=0;i<samples.length;i++){
+    const p=samples[i],next=samples[(i+1)%samples.length];
+    lapLength+=Math.hypot(next.x-p.x,next.z-p.z);
+    maxStartDistance=Math.max(maxStartDistance,Math.hypot(p.x-start.x,p.z-start.z));
   }
+  // A radius-dependent guard prevents repeated near-start weaving, while the
+  // travel threshold is deliberately much shorter than the full course.
+  const startGuardRadius=Math.max(62,roadWidth*2.5);
+  const farRadius=clamp(maxStartDistance*.34,130,185);
+  const minimumTravel=Math.max(250,lapLength*.16);
   return {
-    samples,
-    roadWidth,
-    previousIndex: startIndex,
-    start: samples[0],
-    progress: 0,
-    traveled: 0,
-    leftStart: false,
-    averageSpacing: length/samples.length,
-    lapLength: length
+    samples,roadWidth,start,lapLength,startIndex,
+    startGuardRadius,farRadius,minimumTravel,
+    traveled:0,maxDeparture:0,leftStart:false,farExcursion:false,
+    ready:false,progress:0
   };
 }
 
-export function updateLapTracker(tracker, oldX, oldZ, newX, newZ, nearest, lapTime) {
-  const n=tracker.samples.length;
-  const index=nearest.index;
+export function updateLapTracker(tracker,oldX,oldZ,newX,newZ,nearest,lapTime) {
   const traveled=Math.hypot(newX-oldX,newZ-oldZ);
   tracker.traveled+=traveled;
   const start=tracker.start;
   const departure=Math.hypot(newX-start.x,newZ-start.z);
-  if (departure > Math.max(40,tracker.roadWidth*1.5)) tracker.leftStart=true;
+  tracker.maxDeparture=Math.max(tracker.maxDeparture,departure);
+  if(tracker.maxDeparture>=tracker.startGuardRadius)tracker.leftStart=true;
+  if(tracker.maxDeparture>=tracker.farRadius)tracker.farExcursion=true;
 
-  // Continuous signed circular progress. Backtracking subtracts progress.
-  let delta=index-tracker.previousIndex;
-  if(delta>n/2)delta-=n;
-  if(delta< -n/2)delta+=n;
-  tracker.previousIndex=index;
+  // No waypoint projection, route-completion %, near-road condition, or
+  // signed course progression gates are used for lap certification.
+  tracker.ready=tracker.leftStart&&tracker.farExcursion&&
+    tracker.traveled>=tracker.minimumTravel&&lapTime>=8;
+  tracker.progress=clamp(Math.min(
+    tracker.maxDeparture/tracker.farRadius,
+    tracker.traveled/tracker.minimumTravel
+  ),0,1);
 
-  // Ignore ambiguous projections at tight parallel hairpins or when far
-  // from the course. This never blocks free exploration or car movement.
-  const maximumAdvance=Math.max(8,Math.ceil((traveled*3+2)/tracker.averageSpacing));
-  const nearCourse=nearest.d < tracker.roadWidth*.5 + 24;
-  if (nearCourse && Math.abs(delta)<=maximumAdvance) {
-    tracker.progress=Math.max(-.5,Math.min(1.6,tracker.progress+delta/n));
-  }
-
+  // Signed start-line segment crossing: opposite-direction drives do not count.
   const oldAlong=(oldX-start.x)*start.tx+(oldZ-start.z)*start.tz;
   const newAlong=(newX-start.x)*start.tx+(newZ-start.z)*start.tz;
   const lateral=Math.abs((newX-start.x)*(-start.tz)+(newZ-start.z)*start.tx);
-  const crossingForward=oldAlong<0 && newAlong>=0 && lateral<tracker.roadWidth*.5+7;
-  const valid=crossingForward && tracker.leftStart && tracker.progress>=.74 &&
-    tracker.traveled>=tracker.lapLength*.70 && lapTime>=10;
+  const crossingForward=oldAlong<0&&newAlong>=0&&lateral<tracker.roadWidth*.5+7;
+  const valid=crossingForward&&tracker.ready;
+
   if(valid){
-    tracker.progress=0;
-    tracker.traveled=0;
-    tracker.leftStart=false;
+    tracker.traveled=0;tracker.maxDeparture=0;
+    tracker.leftStart=false;tracker.farExcursion=false;
+    tracker.ready=false;tracker.progress=0;
   }
-  return {completed:valid,progress:Math.max(0,Math.min(1,tracker.progress)),
-    crossedStart:crossingForward};
+  return {
+    completed:valid,crossedStart:crossingForward,
+    ready:tracker.ready,progress:tracker.progress,
+    departure,travel:tracker.traveled
+  };
 }

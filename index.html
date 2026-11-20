@@ -48,15 +48,16 @@
               <div class="audio-switches">
                 <button type="button" id="music-toggle" class="audio-toggle" aria-pressed="true">BGM ON</button>
                 <button type="button" id="engine-toggle" class="audio-toggle" aria-pressed="true">ENGINE ON</button>
+                <button type="button" id="pace-voice-toggle" class="audio-toggle" aria-pressed="true">CO-DRIVER ON [V]</button>
                 <label class="audio-volume">VOL <input id="audio-volume" type="range" min="0" max="100" step="1" value="62" aria-label="Master audio volume"><output id="audio-volume-value">62%</output></label>
               </div>
             </div>
             <button id="start-btn" class="primary" type="button">START TIME ATTACK <span>▶</span></button>
-            <p>WASD 驾驶 · A/D + SPACE 漂移并补充氮气 · SHIFT 氮气 · C 视角 · M 音乐 · N 引擎声</p>
+            <p>WASD 驾驶 · A/D + SPACE 漂移 · SHIFT 氮气 · V 路书语音 · C 视角 · 允许抄近路</p>
           </div>
         </div>
       </div>
-      <div class="menu-footer">NO LOGIN · LOCAL RECORDS · NO TRACK-SIDE WALLS</div>
+      <div class="menu-footer">NO LOGIN · LOCAL RECORDS · SHORTCUTS ALLOWED · NO CHECKPOINTS</div>
     </div>
   </section>
 
@@ -76,8 +77,32 @@
         <span class="hud-label">BEST RACE</span>
         <strong id="best-race">--:--.---</strong>
         <span id="split-delta" class="split-neutral">START / FINISH ONLY</span>
+        <span id="lap-validity" class="lap-validity">SHORTCUTS ALLOWED</span>
       </div>
     </div>
+    <div id="pace-panel" class="pace-panel hidden" role="group" aria-label="拉力赛路书">
+      <div class="pace-kicker">
+        <span class="pace-live-dot" aria-hidden="true"></span>
+        <strong>CO-DRIVER</strong>
+        <span id="pace-status">STANDBY</span>
+      </div>
+      <div class="pace-primary">
+        <div id="pace-arrow" class="pace-arrow" aria-hidden="true">
+          <svg viewBox="0 0 100 100" focusable="false" aria-hidden="true">
+            <path d="M76 82 V58 Q76 28 46 28 H20" fill="none" stroke="currentColor" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M36 12 L20 28 L36 44" fill="none" stroke="currentColor" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="pace-summary">
+          <span id="pace-direction">COURSE</span>
+          <div class="pace-numbers"><strong id="pace-grade">—</strong><span id="pace-distance">READY</span></div>
+        </div>
+      </div>
+      <div id="pace-caption" class="pace-caption">路书已就绪</div>
+      <div class="pace-progress"><div id="pace-timing"></div></div>
+      <div id="pace-next" class="pace-next">READ THE ROAD</div>
+    </div>
+    <span id="pace-announcement" class="sr-only" role="status" aria-live="polite"></span>
     <div id="center-callout" class="center-callout hidden"></div>
     <div class="hud-bottom">
       <div class="left-bottom">
@@ -94,7 +119,7 @@
         <div id="camera-indicator">CHASE CAM</div>
       </div>
     </div>
-    <div class="hud-controls">WASD · A/D + SPACE DRIFT · SHIFT NITRO · M BGM · N ENGINE · C CAMERA · R RESTART · ESC PAUSE</div>
+    <div class="hud-controls">WASD · A/D + SPACE DRIFT · SHIFT NITRO · V CO-DRIVER · C CAMERA · R RESTART · ESC PAUSE</div>
   </div>
 
   <section id="pause" class="overlay dialog-overlay hidden">
