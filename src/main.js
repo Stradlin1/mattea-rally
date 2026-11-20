@@ -4,7 +4,8 @@ import { createCockpit } from './cockpit.js';
 import { freshNitro, stepNitro, NITRO } from './nitro.js';
 import { CARS } from './cars.js';
 import { createLapTracker, updateLapTracker } from './lap.js';
-import { populateScenery } from './scenery.js';
+import { populateScenery } from './sceneryV2.js';
+import { createRallyVehicle } from './vehicleVisuals.js';
 import { RallyAudio } from './audio.js';
 
 const $ = (id) => document.getElementById(id);
@@ -14,7 +15,7 @@ const TAU = Math.PI*2;
 const MAX_SPEED_KMH = 200;
 const MAX_SPEED_MS = MAX_SPEED_KMH / 3.6;
 const RECORD_VERSION = 'mattea-rally-v10';
-const BUILD_LABEL = 'V1.1';
+const BUILD_LABEL = 'V1.2 VISUAL';
 const WEATHER = [
   {id:'clear',name:'晴天',grip:1,fog:1},
   {id:'rain',name:'雨天',grip:.77,fog:.82},
@@ -24,7 +25,7 @@ const settings={car:'classic',track:'pine',weather:'clear',laps:3};
 const KEY=new Set();
 const state={mode:'menu',paused:false,elapsed:0,lapStart:0,lap:1,lapTimes:[],courseProgress:0,lapTracker:null,anyNewLapPB:false,car:null,model:null,camMode:0,drift:false,speed:0,slip:0,recordLap:null,recordRace:null,ghostSamples:[],ghostBest:[],lastSample:0,surface:'GRAVEL',weatherTime:0,calloutTime:0,toastTime:0};
 const canvas=$('game');
-const renderer=new THREE.WebGLRenderer({canvas,antialias:false,powerPreference:'high-performance'});
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'});
 renderer.setPixelRatio(1);
 renderer.outputColorSpace=THREE.SRGBColorSpace;
 renderer.shadowMap.enabled=false;
@@ -128,7 +129,7 @@ function renderMenu(){
 document.querySelectorAll('.lap-preset').forEach(b=>b.addEventListener('click',()=>{settings.laps=Number(b.dataset.laps);renderMenu();}));
 $('laps-input').addEventListener('input',(event)=>{const n=Number(event.target.value);if(Number.isInteger(n)&&n>=1&&n<=99){settings.laps=n;renderMenu();}});
 function clearWorld(){
-  while(world.children.length){const item=world.children[0];world.remove(item);item.traverse(obj=>{obj.geometry?.dispose();if(obj.material){const mats=Array.isArray(obj.material)?obj.material:[obj.material];mats.forEach(m=>m.dispose());}});}
+  while(world.children.length){const item=world.children[0];world.remove(item);item.traverse(obj=>{obj.geometry?.dispose();if(obj.material){const mats=Array.isArray(obj.material)?obj.material:[obj.material];mats.forEach(m=>{m.map?.dispose();m.dispose();});}});}
   dust.length=0;decor.length=0;wheelMeshes.length=0;exhaustFlames=[];carGroup=null;
 }
 function hash(x,z,s){const f=Math.sin(x*127.1+z*311.7+s*74.7)*43758.5453;return f-Math.floor(f);}
@@ -166,13 +167,46 @@ function createRoad(){
   geo.setAttribute('position',new THREE.Float32BufferAttribute(verts,3));geo.setAttribute('color',new THREE.Float32BufferAttribute(cols,3));
   geo.setIndex(index);geo.computeVertexNormals();
   roadMesh=new THREE.Mesh(geo,new THREE.MeshLambertMaterial({vertexColors:true,side:THREE.DoubleSide}));world.add(roadMesh);
-  const strips=new THREE.Group();const stripeMat=new THREE.MeshBasicMaterial({color:0xe6d3ac});
-  for(let i=0;i<n;i+=22){
-    const a=roadSamples[i],b=roadSamples[(i+9)%n],mid=new THREE.Vector3((a.x+b.x)*.5,Math.max(a.y,b.y)+.2,(a.z+b.z)*.5);
-    const segment=new THREE.Mesh(new THREE.BoxGeometry(.32,.045,Math.hypot(b.x-a.x,b.z-a.z)),stripeMat);
-    segment.position.copy(mid);segment.rotation.y=Math.atan2(b.x-a.x,b.z-a.z);strips.add(segment);
+  // Surface dressing is purely visual. Actual road width / grip are unchanged.
+  if(currentTrack().id==='snow'){
+    const strips=new THREE.Group();
+    const stripeMat=new THREE.MeshBasicMaterial({color:0xe6e9e6});
+    for(let i=0;i<n;i+=22){
+      const a=roadSamples[i],b=roadSamples[(i+9)%n];
+      const mid=new THREE.Vector3((a.x+b.x)*.5,Math.max(a.y,b.y)+.20,(a.z+b.z)*.5);
+      const segment=new THREE.Mesh(
+        new THREE.BoxGeometry(.28,.045,Math.hypot(b.x-a.x,b.z-a.z)),stripeMat);
+      segment.position.copy(mid);
+      segment.rotation.y=Math.atan2(b.x-a.x,b.z-a.z);strips.add(segment);
+    }
+    world.add(strips);
+  }else{
+    // Two understated gravel tire paths replace implausible painted lane dashes.
+    const rutVerts=[],rutIdx=[];
+    for(const side of [-1,1]){
+      const begin=rutVerts.length/3;
+      for(let i=0;i<=n;i++){
+        const p=roadSamples[i%n],nx=-p.tz,nz=p.tx;
+        for(const offset of [-.40,.40]){
+          const d=side*1.63+offset;
+          const x=p.x+nx*d,z=p.z+nz*d;
+          rutVerts.push(x,terrainY(x,z)+.195,z);
+        }
+        if(i<n){
+          const a=begin+i*2;
+          rutIdx.push(a,a+1,a+2,a+1,a+3,a+2);
+        }
+      }
+    }
+    const rutGeo=new THREE.BufferGeometry();
+    rutGeo.setAttribute('position',new THREE.Float32BufferAttribute(rutVerts,3));
+    rutGeo.setIndex(rutIdx);
+    const rutMat=new THREE.MeshBasicMaterial({
+      color:currentTrack().id==='desert'?0x72523f:0x5b5045,
+      transparent:true,opacity:.23,depthWrite:false,side:THREE.DoubleSide
+    });
+    world.add(new THREE.Mesh(rutGeo,rutMat));
   }
-  world.add(strips);
   // Thin gravel shoulders and colored edge strips add readable road boundaries
   // without physical walls. Dirt, snow and red-rock stages use different hues.
   const shoulderTone=currentTrack().id==='snow'?0xdbe8ed:currentTrack().id==='desert'?0x80523e:0x6e5746;
@@ -245,64 +279,13 @@ function buildTerrain(){
   populateScenery(world,{track:tr,roadSamples,terrainY,nearestRoad,hash});
 }
 function buildCar(){
+  // Graphics-only refactor. The same carGroup, wheelMeshes, exhaustFlames
+  // interfaces feed the unchanged vehicle dynamics and nitro effects.
   const config=currentCar();
   carGroup=new THREE.Group();world.add(carGroup);
-  const mat=new THREE.MeshLambertMaterial({color:config.color,flatShading:true});
-  const trim=new THREE.MeshLambertMaterial({color:0x26323e}),glass=new THREE.MeshLambertMaterial({color:0x243d52}),lights=new THREE.MeshBasicMaterial({color:0xffe0ac}),tail=new THREE.MeshBasicMaterial({color:0xe84835});
-  const body=new THREE.Mesh(new THREE.BoxGeometry(2.7,.85,5.0),mat);body.position.y=.95;carGroup.add(body);
-  const cabin=new THREE.Mesh(new THREE.BoxGeometry(2.25,.92,2.4),glass);cabin.position.set(0,1.73,-.3);carGroup.add(cabin);
-  for(const side of [-1,1]){
-    const stripe=new THREE.Mesh(new THREE.BoxGeometry(.06,.2,4.2),new THREE.MeshBasicMaterial({color:0xf2e2b8}));stripe.position.set(side*1.37,1,0);carGroup.add(stripe);
-    for(const front of [-1,1]){
-      const tire=new THREE.Mesh(new THREE.CylinderGeometry(.74,.74,.44,10),trim);
-      tire.rotation.z=Math.PI/2;tire.position.set(side*1.47,.72,front*1.55);carGroup.add(tire);wheelMeshes.push({mesh:tire,front:front===-1,side});
-    }
-  }
-  for(const side of [-1,1]){
-    const headlight=new THREE.Mesh(new THREE.BoxGeometry(.53,.2,.08),lights);headlight.position.set(side*.83,1.05,-2.53);carGroup.add(headlight);
-    const taillight=new THREE.Mesh(new THREE.BoxGeometry(.66,.22,.08),tail);taillight.position.set(side*.82,.96,2.54);carGroup.add(taillight);
-  }
-  const spoiler=new THREE.Mesh(new THREE.BoxGeometry(2.7,.16,.45),trim);spoiler.position.set(0,1.8,2.22);carGroup.add(spoiler);
-  const bumper=new THREE.Mesh(new THREE.BoxGeometry(2.55,.3,.2),trim);bumper.position.set(0,.67,-2.58);carGroup.add(bumper);
-  // Keep the preferred classic V0.2 silhouette; distinguish classes with accents.
-  if(config.body==='awd'){
-    const scoop=new THREE.Mesh(new THREE.BoxGeometry(.82,.20,.80),trim);
-    scoop.position.set(0,1.46,-1.50);carGroup.add(scoop);
-    const rack=new THREE.Mesh(new THREE.BoxGeometry(2.35,.15,1.12),trim);
-    rack.position.set(0,2.27,-.35);carGroup.add(rack);
-  }else if(config.body==='drift'){
-    spoiler.position.y=2.20;spoiler.scale.x=1.19;
-    const decal=new THREE.Mesh(new THREE.BoxGeometry(.65,.035,3.15),
-      new THREE.MeshBasicMaterial({color:0x1e2229}));
-    decal.position.set(0,1.409,-1.35);carGroup.add(decal);
-  }else if(config.body==='buggy'){
-    for(const side of [-1,1]){
-      const rail=new THREE.Mesh(new THREE.BoxGeometry(.18,.19,3.9),trim);
-      rail.position.set(side*1.43,1.20,.05);carGroup.add(rail);
-    }
-    const lightbar=new THREE.Mesh(new THREE.BoxGeometry(2.30,.18,.28),lights);
-    lightbar.position.set(0,2.31,-.82);carGroup.add(lightbar);
-  }
-  // Two visible rear exhausts and additive low-poly blue nitro flames.
-  const exhaustMetal=new THREE.MeshLambertMaterial({color:0x48555c,flatShading:true});
-  const outerFlame=new THREE.MeshBasicMaterial({color:0x168fff,transparent:true,opacity:.80,blending:THREE.AdditiveBlending,depthWrite:false});
-  const innerFlame=new THREE.MeshBasicMaterial({color:0xd5ffff,transparent:true,opacity:.92,blending:THREE.AdditiveBlending,depthWrite:false});
-  const nozzleGeo=new THREE.CylinderGeometry(.20,.25,.55,8);
-  const flameGeo=new THREE.ConeGeometry(.29,1.65,7);
-  const coreGeo=new THREE.ConeGeometry(.13,1.13,7);
-  for(const side of [-1,1]){
-    const exhaust=new THREE.Group();
-    exhaust.position.set(side*.87,.67,2.62);carGroup.add(exhaust);
-    const nozzle=new THREE.Mesh(nozzleGeo,exhaustMetal);
-    nozzle.rotation.x=Math.PI/2;nozzle.position.z=.23;exhaust.add(nozzle);
-    const jet=new THREE.Group();
-    jet.position.z=.67;jet.visible=false;exhaust.add(jet);
-    const outer=new THREE.Mesh(flameGeo,outerFlame);
-    outer.rotation.x=Math.PI/2;outer.position.z=.79;jet.add(outer);
-    const core=new THREE.Mesh(coreGeo,innerFlame);
-    core.rotation.x=Math.PI/2;core.position.z=.47;jet.add(core);
-    exhaustFlames.push({group:jet,outer,core,side});
-  }
+  const visual=createRallyVehicle(carGroup,config);
+  wheelMeshes.push(...visual.wheels);
+  exhaustFlames=visual.exhaustFlames;
 }
 function createWorld(){
   clearWorld();buildCurve();buildTerrain();createRoad();buildCar();
@@ -584,7 +567,7 @@ function renderMinimap(){
 function resize(){
   // Rendering internally at a low resolution is the pixel-art postprocess.
   const aspect=innerWidth/innerHeight;
-  const height=innerWidth<700?Math.max(180,Math.min(300,Math.round(innerHeight*.58))):Math.max(240,Math.min(420,Math.round(innerHeight*.55)));
+  const height=innerWidth<700?Math.max(260,Math.min(520,Math.round(innerHeight*.76))):Math.max(420,Math.min(780,Math.round(innerHeight*.82)));
   renderer.setSize(Math.round(height*aspect),height,false);
   camera.aspect=aspect;camera.updateProjectionMatrix();
 }

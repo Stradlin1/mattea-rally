@@ -104,6 +104,14 @@ Open http://localhost:8000. Opening `index.html` directly with `file://` may blo
 - Repeated small scenery meshes are GPU-instanced to reduce draw calls; decorative roadside items are non-blocking, so no invisible walls are introduced.
 - Previous PB records remain stored; `mattea-rally-v10` starts a fresh ranking because the course validation and car balance changed.
 
+## V1.2 — Low-poly stage and vehicle art / 场景与车模升级
+
+- The four vehicles retain their existing **handling classes and driving parameters**, but now have distinct procedural low-poly shells, wheel rims, window pillars, lamps, bumpers, liveries and car-specific rally equipment.
+- All three stages now feature denser GPU-instanced trees, varied ground cover, rocks, huts, rally banners, mountain backdrops and biome-specific landmarks; gravel receives two subdued tire-wear paths.
+- Higher-resolution 3D rendering with anti-aliasing improves car silhouette and roadside readability without changing the familiar arcade interface.
+- **No handling modifications:** `updatePhysics()`, `cars.js`, `nitro.js`, lap validation, track control points and key mappings remain unchanged. Decorative scenery is non-blocking and there are still no checkpoints.
+- All artwork is procedural and original; no assets from the reference game are copied.
+
 ## V1.1 — Original music and engine audio / 原创音乐与引擎音效
 
 - Added an **original, procedurally synthesized 8-bit BGM** with square-wave melody, bass, kick, snare and hi-hat. No third-party audio files, external music services or copyrighted songs are used.
@@ -129,10 +137,12 @@ Open http://localhost:8000. Opening `index.html` directly with `file://` may blo
 ```text
 index.html       HTML menus, HUD, result screen
 styles.css       Retro responsive UI
-src/main.js      Game scene, terrain, vehicle visuals, controls, HUD
+src/main.js      Game scene, road, driving physics, controls, HUD
+src/vehicleVisuals.js  New four-class procedural car bodies
 src/cars.js      Vehicle class parameters
 src/lap.js       Start/finish-only lap validation
-src/scenery.js   Instanced nature and thematic landmarks
+src/sceneryV2.js  New GPU-instanced themed landscapes and props
+src/scenery.js   Previous scenery implementation (legacy)
 src/nitro.js     Finite nitro and drift regeneration
 src/tracks.js    Distinct course geometry
 ```
