@@ -1,21 +1,21 @@
-import { createPacenotes, nextPacenotes } from './pacenotes.js';
+import { createPacenotes, nextPacenotes } from './pacenotes.js?v=1.5.0';
 
-const STORAGE_KEY='mattea-rally-codriver-v1';
+// Visual-only rally roadbook. All notes are derived from the existing racing
+// line and are advisory: a shortcut does not suppress the display or laps.
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-function storedVoice(){
-  try{return JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}').voice!==false;}
-  catch{return true;}
-}
+const prettyDistance=metres=>{
+  if(metres<=12)return 'NOW';
+  if(metres>=1000)return (metres/1000).toFixed(1)+' KM';
+  return Math.max(5,Math.round(metres/5)*5)+' M';
+};
 
 export class PaceGuide {
   constructor(){
     this.book={length:0,notes:[]};
     this.roadWidth=26;
-    this.announced=new Set();
-    this.voiceEnabled=storedVoice();
-    this.lastMode='';
     this.lastNoteId=null;
-    this.lastDistance=-1;
+    this.lastOffCourse=null;
+    this.lastDistance='';
     this.panel=document.getElementById('pace-panel');
     this.arrow=document.getElementById('pace-arrow');
     this.direction=document.getElementById('pace-direction');
@@ -28,32 +28,6 @@ export class PaceGuide {
     this.accessible=document.getElementById('pace-announcement');
   }
 
-  get voiceSupported(){
-    return typeof window!=='undefined'&&
-      'speechSynthesis' in window&&typeof window.SpeechSynthesisUtterance==='function';
-  }
-
-  setVoiceEnabled(value){
-    this.voiceEnabled=!!value;
-    try{localStorage.setItem(STORAGE_KEY,JSON.stringify({voice:this.voiceEnabled}));}catch{}
-    if(!this.voiceEnabled)this.cancelSpeech();
-    return this.voiceEnabled;
-  }
-
-  stop(){
-    this.cancelSpeech();
-    this.panel.classList.add('hidden');
-    this.lastMode='';
-    this.lastNoteId=null;
-    this.lastDistance=-1;
-  }
-
-  cancelSpeech(){
-    if(this.voiceSupported){
-      try{window.speechSynthesis.cancel();}catch{}
-    }
-  }
-
   setCourse(samples,roadWidth){
     this.book=createPacenotes(samples);
     this.roadWidth=roadWidth;
@@ -61,109 +35,86 @@ export class PaceGuide {
   }
 
   resetLap(){
-    this.announced.clear();
-    this.cancelSpeech();
     this.lastNoteId=null;
-    this.lastMode='';
-    this.lastDistance=-1;
-    this.accessible.textContent='';
+    this.lastOffCourse=null;
+    this.lastDistance='';
+    this.panel.classList.remove('is-tight','is-shortcut','is-ready','is-left','is-right','pace-pop');
     this.panel.classList.add('hidden');
-  }
-
-  announce(note,meters){
-    const rounded=Math.max(20,Math.round(meters/10)*10);
-    const alert=note.hairpin?'，发卡弯，减速':'';
-    const message=`前方${rounded}米，${note.direction==='left'?'左':'右'}${note.grade}${alert}`;
-    this.accessible.textContent=message;
-    if(!this.voiceEnabled||!this.voiceSupported)return;
-    try{
-      const synth=window.speechSynthesis;
-      // Replace older calls when consecutive corners come close together.
-      synth.cancel();
-      const speech=new window.SpeechSynthesisUtterance(message);
-      speech.lang='zh-CN';speech.rate=1.2;speech.pitch=1.02;speech.volume=.82;
-      const zhVoices=synth.getVoices().filter(v=>/^zh/i.test(v.lang));
-      const nativeVoice=zhVoices.find(v=>/CN/i.test(v.lang))||zhVoices[0];
-      if(nativeVoice)speech.voice=nativeVoice;
-      synth.speak(speech);
-    }catch(err){
-      console.warn('Co-driver speech not available; keeping animated notes.',err);
-    }
-  }
-
-  showFreeRoute(){
-    if(this.lastMode!=='shortcut'){
-      this.panel.classList.remove('hidden');
-      this.panel.classList.remove('is-ready','is-tight','is-left','is-right','pace-pop');
-      void this.panel.offsetWidth;
-      this.panel.classList.add('is-shortcut','pace-pop');
-      this.arrow.classList.remove('is-right');
-      this.direction.textContent='FREE ROUTE';
-      this.grade.textContent='↗';
-      this.caption.textContent='正在抄近路 · 返回赛道后恢复路书';
-      this.status.textContent='SHORTCUT';
-      this.next.textContent='任意路线均可计圈';
-      this.distance.textContent='NO PACE NOTES';
-      this.timing.style.width='100%';
-      this.accessible.textContent='正在抄近路，路书暂停';
-      this.cancelSpeech();
-      this.lastMode='shortcut';this.lastNoteId=null;
-    }
-  }
-
-  showNoBend(){
-    if(this.lastMode==='ready')return;
-    this.panel.classList.remove('hidden','is-shortcut','is-tight');
-    this.panel.classList.add('is-ready');
-    this.arrow.classList.remove('is-right');
-    this.direction.textContent='COURSE';
+    this.status.textContent='COURSE LOADED';
+    this.direction.textContent='NEXT';
     this.grade.textContent='—';
-    this.caption.textContent='路书已就绪，等待下一处弯道';
-    this.status.textContent='STANDBY';
-    this.next.textContent='驶入赛道后提供转弯提示';
-    this.distance.textContent='ON ROUTE';
+    this.distance.textContent='READY';
+    this.caption.textContent='赛道路书已生成';
+    this.next.textContent='等待开始比赛';
     this.timing.style.width='0%';
-    this.lastMode='ready';this.lastNoteId=null;
+    this.accessible.textContent='';
+  }
+
+  start(){
+    // Explicitly show from the first race frame, even before the next HUD tick.
+    this.panel.classList.remove('hidden');
+    this.panel.classList.add('is-ready');
+    this.status.textContent='LIVE ROUTEBOOK';
+    this.next.textContent='全程显示 · 不需要语音';
+  }
+
+  stop(){
+    this.panel.classList.add('hidden');
+    this.lastOffCourse=null;
+    this.lastNoteId=null;
   }
 
   update({nearest,speedKmh=0,active=true}={}){
-    if(!active||!nearest||!this.book.notes.length){this.stop();return;}
-    if(nearest.d>this.roadWidth*.5+26){
-      this.showFreeRoute();return;
+    if(!active){this.stop();return;}
+    this.panel.classList.remove('hidden'); // Always on while driving.
+    if(!nearest||!this.book.notes.length){
+      this.panel.classList.add('is-ready');
+      this.direction.textContent='COURSE';
+      this.grade.textContent='—';
+      this.distance.textContent='NO DATA';
+      this.caption.textContent='暂时没有可用的弯道路书';
+      this.status.textContent='STANDBY';
+      return;
     }
-    const upcoming=nextPacenotes(this.book,nearest.index);
-    const visible=upcoming.find(n=>n.ahead<225);
-    if(!visible){this.showNoBend();return;}
-    const id=visible.id;
-    if(this.lastNoteId!==id||this.lastMode!=='note'){
-      this.panel.classList.remove('hidden','is-ready','is-shortcut','is-left','is-right','is-tight','pace-pop');
-      this.panel.classList.add(visible.direction==='left'?'is-left':'is-right');
-      if(visible.grade<=2)this.panel.classList.add('is-tight');
-      this.arrow.classList.toggle('is-right',visible.direction==='right');
-      this.direction.textContent=visible.direction==='left'?'LEFT':'RIGHT';
-      this.grade.textContent=String(visible.grade);
-      this.caption.textContent=(visible.direction==='left'?'左':'右')+
-        String(visible.grade)+(visible.hairpin?' · 发卡弯':' · 即将入弯');
-      this.status.textContent=visible.hairpin?'HAIRPIN':visible.grade<=3?'SLOW':'PACE NOTE';
-      const following=upcoming.find(n=>n.id!==visible.id&&n.ahead>visible.ahead+18&&n.ahead<370);
-      this.next.textContent=following?
-        'THEN '+(following.direction==='left'?'LEFT ':'RIGHT ')+following.grade:'READ THE ROAD';
-      // A fresh animation only on note transitions; do not animate per frame.
-      void this.panel.offsetWidth;
-      this.panel.classList.add('pace-pop');
-      this.lastNoteId=id;this.lastMode='note';this.lastDistance=-1;
+    const candidates=nextPacenotes(this.book,nearest.index);
+    const current=candidates[0]; // Never hide on long straights.
+    if(!current)return;
+    const offCourse=nearest.d>this.roadWidth*.5+26;
+    const newNote=this.lastNoteId!==current.id;
+    const modeChanged=this.lastOffCourse!==offCourse;
+    if(newNote||modeChanged){
+      this.panel.classList.remove('is-ready','is-shortcut','is-left','is-right','is-tight','pace-pop');
+      this.panel.classList.add(offCourse?'is-shortcut':current.direction==='left'?'is-left':'is-right');
+      if(current.grade<=2&&!offCourse)this.panel.classList.add('is-tight');
+      this.arrow.classList.toggle('is-right',current.direction==='right');
+      this.direction.textContent=current.direction==='left'?'LEFT / 左':'RIGHT / 右';
+      this.grade.textContent=String(current.grade);
+      this.status.textContent=offCourse?'OFF COURSE':current.hairpin?'HAIRPIN':current.grade<=3?'SLOW CORNER':'NEXT TURN';
+      this.caption.textContent=offCourse?
+        '自由抄近路中 · 显示原赛道参考路书':
+        current.hairpin?'前方发卡弯 · 建议减速':'前方'+(current.direction==='left'?'左':'右')+current.grade+'级弯';
+      const next=candidates.find(n=>n.id!==current.id&&n.ahead>current.ahead+8);
+      this.next.textContent=next?
+        '随后 '+(next.direction==='left'?'左':'右')+next.grade+' · '+prettyDistance(next.ahead):
+        '继续沿赛道行驶';
+      if(newNote){
+        // Motion only on transitions, never every frame (reduces flashing).
+        void this.panel.offsetWidth;
+        this.panel.classList.add('pace-pop');
+        this.accessible.textContent='前方'+(current.direction==='left'?'左':'右')+current.grade+'级弯';
+      }
+      this.lastNoteId=current.id;
+      this.lastOffCourse=offCourse;
+      this.lastDistance='';
     }
-    const rounded=Math.max(0,Math.round(visible.ahead/5)*5);
-    if(this.lastDistance!==rounded){
-      this.distance.textContent=rounded<=8?'NOW':rounded+' M';
-      this.timing.style.width=clamp((225-visible.ahead)/225*100,0,100)+'%';
-      this.lastDistance=rounded;
+    const displayed=prettyDistance(current.ahead);
+    if(displayed!==this.lastDistance){
+      this.distance.textContent=displayed;
+      this.timing.style.width=clamp((280-current.ahead)/280*100,0,100)+'%';
+      this.lastDistance=displayed;
     }
-    const speedMs=speedKmh/3.6;
-    const speakDistance=clamp(33+speedMs*2.0,48,125);
-    if(speedKmh>14&&visible.ahead<=speakDistance&&!this.announced.has(id)){
-      this.announced.add(id);
-      this.announce(visible,visible.ahead);
-    }
+    // Optional speed-aware urgency is visual only and does not alter handling.
+    const warningDistance=clamp(25+(speedKmh/3.6)*1.5,45,115);
+    this.panel.classList.toggle('is-imminent',!offCourse&&current.ahead<warningDistance&&current.grade<=3);
   }
 }

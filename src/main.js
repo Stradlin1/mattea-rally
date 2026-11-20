@@ -9,7 +9,7 @@ import { createRallyVehicle } from './vehicleVisuals.js';
 import { createSurfaceTexture, addSkyAtmosphere, addCarContactShadow, createWeatherParticles } from './sceneArt.js';
 import { addTracksideDetails } from './trackDetails.js';
 import { RallyAudio } from './audio.js';
-import { PaceGuide } from './paceGuide.js';
+import { PaceGuide } from './paceGuide.js?v=1.5.0';
 
 const $ = (id) => document.getElementById(id);
 const clamp = (v,a,b) => Math.max(a,Math.min(b,v));
@@ -18,7 +18,7 @@ const TAU = Math.PI*2;
 const MAX_SPEED_KMH = 200;
 const MAX_SPEED_MS = MAX_SPEED_KMH / 3.6;
 const RECORD_VERSION = 'mattea-rally-v11-shortcut';
-const BUILD_LABEL = 'V1.4 PACENOTES';
+const BUILD_LABEL = 'V1.5 VISIBLE ROADBOOK';
 const WEATHER = [
   {id:'clear',name:'晴天',grip:1,fog:1},
   {id:'rain',name:'雨天',grip:.77,fog:.82},
@@ -63,10 +63,6 @@ function syncAudioControls(){
   $('audio-volume').value=String(Math.round(audio.volume*100));
   $('audio-volume-value').textContent=Math.round(audio.volume*100)+'%';
   $('audio-status').textContent=audio.unavailable?'UNAVAILABLE':audio.ctx?.state==='running'?'AUDIO READY':'START TO ENABLE';
-  const voice=$('pace-voice-toggle');
-  voice.textContent=!guide.voiceSupported?'CO-DRIVER N/A':guide.voiceEnabled?'VOICE ON [V]':'VOICE OFF [V]';
-  voice.setAttribute('aria-pressed',String(guide.voiceEnabled&&guide.voiceSupported));
-  voice.disabled=!guide.voiceSupported;
 }
 $('music-toggle').addEventListener('click',()=>{
   audio.unlock();audio.setMusicEnabled(!audio.musicOn);syncAudioControls();
@@ -76,10 +72,6 @@ $('engine-toggle').addEventListener('click',()=>{
 });
 $('audio-volume').addEventListener('input',event=>{
   audio.unlock();audio.setVolume(Number(event.target.value)/100);syncAudioControls();
-});
-$('pace-voice-toggle').addEventListener('click',()=>{
-  guide.setVoiceEnabled(!guide.voiceEnabled);
-  syncAudioControls();
 });
 syncAudioControls();
 // F3 diagnostic overlay. It lets players distinguish old cached builds,
@@ -369,6 +361,8 @@ function startRace(){
   state.recordRace=getRecord('best-race',true);
   state.ghostBest=state.recordLap?.ghost||[];
   state.mode='race';state.paused=false;menu.classList.add('hidden');results.classList.add('hidden');pauseEl.classList.add('hidden');hud.classList.remove('hidden');
+  guide.start();
+  guide.update({nearest:nearestRoad(state.car.x,state.car.z),speedKmh:0,active:true});
   showCallout('GO!',1.4);KEY.clear();lastFrame=performance.now();updateHud();syncAudioControls();
 }
 function showCallout(value,seconds=1){const el=$('center-callout');el.textContent=value;el.classList.remove('hidden');state.calloutTime=seconds;}
@@ -378,7 +372,7 @@ function showMenu(){
 }
 function setPaused(value){
   if(state.mode!=='race')return;
-  state.paused=value;if(value)guide.stop();pauseEl.classList.toggle('hidden',!value);KEY.clear();lastFrame=performance.now();
+  state.paused=value;if(value)guide.stop();else guide.start();pauseEl.classList.toggle('hidden',!value);KEY.clear();lastFrame=performance.now();
 }
 function completeLap(){
   const lapTime=state.elapsed-state.lapStart;
@@ -392,7 +386,7 @@ function completeLap(){
   }
   if(state.lap>=settings.laps){finishRace(state.anyNewLapPB);return;}
   state.lap++;state.lapStart=state.elapsed;state.courseProgress=0;
-  guide.resetLap();
+  guide.resetLap();guide.start();
   state.ghostSamples=[];state.lastSample=0;
   showCallout(newLapPB?'NEW LAP PB!':'LAP '+(state.lap-1)+' COMPLETE',1.5);
 }
@@ -632,20 +626,13 @@ function resize(){
 }
 window.addEventListener('resize',resize);resize();
 document.addEventListener('keydown',e=>{
-  if(['KeyW','KeyA','KeyS','KeyD','Space','ShiftLeft','ShiftRight','KeyC','KeyR','Escape','F3','KeyM','KeyN','KeyV'].includes(e.code))e.preventDefault();
+  if(['KeyW','KeyA','KeyS','KeyD','Space','ShiftLeft','ShiftRight','KeyC','KeyR','Escape','F3','KeyM','KeyN'].includes(e.code))e.preventDefault();
   if(e.repeat)return;
   if(e.code==='KeyM'){
     audio.unlock();audio.setMusicEnabled(!audio.musicOn);syncAudioControls();return;
   }
   if(e.code==='KeyN'){
     audio.unlock();audio.setEngineEnabled(!audio.engineOn);syncAudioControls();return;
-  }
-  if(e.code==='KeyV'){
-    if(guide.voiceSupported){
-      guide.setVoiceEnabled(!guide.voiceEnabled);syncAudioControls();
-      if(state.mode==='race'&&!state.paused)toast(guide.voiceEnabled?'CO-DRIVER VOICE ON':'CO-DRIVER VOICE OFF',1);
-    }
-    return;
   }
   if(e.code==='F3'){telemetryBox.hidden=!telemetryBox.hidden;updateTelemetry();return;}
   if(e.code==='Escape'&&state.mode==='race'){setPaused(!state.paused);return;}

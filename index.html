@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#111c25">
   <meta name="description" content="MATTEA RALLY — A pixel-style 3D rally time attack.">
-  <title>MATTEA RALLY — Pixel Time Attack</title>
-  <link rel="stylesheet" href="./styles.css">
+  <title>MATTEA RALLY V1.5 — Visual Roadbook</title>
+  <link rel="stylesheet" href="./styles.css?v=1.5.0">
   <script type="importmap">
   {"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js"}}
   </script>
@@ -48,16 +48,15 @@
               <div class="audio-switches">
                 <button type="button" id="music-toggle" class="audio-toggle" aria-pressed="true">BGM ON</button>
                 <button type="button" id="engine-toggle" class="audio-toggle" aria-pressed="true">ENGINE ON</button>
-                <button type="button" id="pace-voice-toggle" class="audio-toggle" aria-pressed="true">CO-DRIVER ON [V]</button>
                 <label class="audio-volume">VOL <input id="audio-volume" type="range" min="0" max="100" step="1" value="62" aria-label="Master audio volume"><output id="audio-volume-value">62%</output></label>
               </div>
             </div>
             <button id="start-btn" class="primary" type="button">START TIME ATTACK <span>▶</span></button>
-            <p>WASD 驾驶 · A/D + SPACE 漂移 · SHIFT 氮气 · V 路书语音 · C 视角 · 允许抄近路</p>
+            <p>WASD 驾驶 · A/D + SPACE 漂移 · SHIFT 氮气 · C 视角 · 动态路书全程显示 · 允许抄近路</p>
           </div>
         </div>
       </div>
-      <div class="menu-footer">NO LOGIN · LOCAL RECORDS · SHORTCUTS ALLOWED · NO CHECKPOINTS</div>
+      <div class="menu-footer">NO LOGIN · V1.5 VISIBLE ROADBOOK · SHORTCUTS ALLOWED</div>
     </div>
   </section>
 
@@ -80,6 +79,26 @@
         <span id="lap-validity" class="lap-validity">SHORTCUTS ALLOWED</span>
       </div>
     </div>
+    <div id="center-callout" class="center-callout hidden"></div>
+    <div class="hud-bottom">
+      <div class="left-bottom">
+        <canvas id="minimap" width="220" height="220" aria-label="赛道小地图"></canvas>
+        <div id="surface-indicator">GRAVEL</div>
+      </div>
+      <div class="speedo">
+        <div id="drift-indicator">GRIP</div>
+        <div class="speed-value"><strong id="speed">000</strong><span>KM/H</span></div>
+        <div class="speed-track"><div id="speed-bar"></div></div>
+        <div class="nitro-header"><span>NITRO <span id="nitro-mode">READY</span></span><strong id="nitro-percent">100%</strong></div>
+        <div id="nitro-shell" class="nitro-shell"><div id="nitro-bar"></div></div>
+        <div id="nitro-hint">DRIFT TO REFILL · SHIFT TO BOOST</div>
+        <div id="camera-indicator">CHASE CAM</div>
+      </div>
+    </div>
+    <div class="hud-controls">WASD · A/D + SPACE DRIFT · SHIFT NITRO · VISUAL ROADBOOK ON · C CAMERA · R RESTART · ESC PAUSE</div>
+  </div>
+
+  <!-- Independent, fixed overlay: visible whenever a race is active. -->
     <div id="pace-panel" class="pace-panel hidden" role="group" aria-label="拉力赛路书">
       <div class="pace-kicker">
         <span class="pace-live-dot" aria-hidden="true"></span>
@@ -103,24 +122,6 @@
       <div id="pace-next" class="pace-next">READ THE ROAD</div>
     </div>
     <span id="pace-announcement" class="sr-only" role="status" aria-live="polite"></span>
-    <div id="center-callout" class="center-callout hidden"></div>
-    <div class="hud-bottom">
-      <div class="left-bottom">
-        <canvas id="minimap" width="220" height="220" aria-label="赛道小地图"></canvas>
-        <div id="surface-indicator">GRAVEL</div>
-      </div>
-      <div class="speedo">
-        <div id="drift-indicator">GRIP</div>
-        <div class="speed-value"><strong id="speed">000</strong><span>KM/H</span></div>
-        <div class="speed-track"><div id="speed-bar"></div></div>
-        <div class="nitro-header"><span>NITRO <span id="nitro-mode">READY</span></span><strong id="nitro-percent">100%</strong></div>
-        <div id="nitro-shell" class="nitro-shell"><div id="nitro-bar"></div></div>
-        <div id="nitro-hint">DRIFT TO REFILL · SHIFT TO BOOST</div>
-        <div id="camera-indicator">CHASE CAM</div>
-      </div>
-    </div>
-    <div class="hud-controls">WASD · A/D + SPACE DRIFT · SHIFT NITRO · V CO-DRIVER · C CAMERA · R RESTART · ESC PAUSE</div>
-  </div>
 
   <section id="pause" class="overlay dialog-overlay hidden">
     <div class="panel dialog">
@@ -151,6 +152,6 @@
 
   <div id="toast" class="toast hidden"></div>
   <div id="error" class="error hidden" role="alert"></div>
-  <script type="module" src="./src/main.js"></script>
+  <script type="module" src="./src/main.js?v=1.5.0"></script>
 </body>
 </html>

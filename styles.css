@@ -96,3 +96,23 @@
   .pace-pop,.pace-live-dot{animation:none!important}
   .pace-arrow svg,#pace-timing{transition:none!important}
 }
+
+/* V1.5 visual roadbook: fixed outside the HUD stacking context. */
+.pace-panel{
+  position:fixed!important;
+  z-index:12!important;
+  top:18px!important;
+  left:50%!important;
+  transform:translateX(-50%);
+  width:min(310px,35vw);
+  border-top-width:4px;
+  box-shadow:0 12px 32px rgba(0,0,0,.68);
+}
+.pace-panel.is-imminent:not(.is-shortcut){border-top-color:#ff8659;}
+.pace-panel.is-imminent:not(.is-shortcut) #pace-grade{color:#ffb073;}
+@media(max-width:950px){
+  .pace-panel{top:82px!important;width:min(270px,50vw);}
+}
+@media(max-width:560px){
+  .pace-panel{top:83px!important;width:218px;}
+}

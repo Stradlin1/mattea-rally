@@ -35,14 +35,13 @@ Open http://localhost:8000. Opening `index.html` directly with `file://` may blo
 | Esc | Pause / 暂停 |
 | M | Toggle BGM / 开关背景音乐 |
 | N | Toggle engine SFX / 开关引擎及驾驶音效 |
-| V | Toggle Chinese co-driver voice / 开关中文路书语音 |
 
 ## Rules / 赛制
 
 - Set the race length from **1 to 99 laps**.
 - **No checkpoints, shortcuts allowed:** You can cut across the map, drive off road, and rejoin the circuit wherever you like. Route completion percentage is **not** required. Laps count only on a forward finish-line crossing after reaching well outside the start zone, covering a meaningful total distance, and spending at least 8 seconds on the lap. Local weaving or repeated near-start line crossings do not count.
 - The new validation uses the course's scale to determine the minimum excursion and travel distance. The goal is anti-farming near start/finish, not mandatory route-following.
-- On-screen animated co-driver pace notes show turn direction, severity (1=tightest, 6=fastest), distance to the next bend, and the following corner. The browser's Chinese speech synthesis announces an approaching bend if supported. Press **V** or use the garage toggle to mute voice without hiding the notes. The guide pauses when taking a deep off-road shortcut and resumes on rejoining the course.
+- The animated visual roadbook continuously shows turn direction, grade (1=tightest, 6=fastest), distance and next turn. It is non-audio and remains visible during shortcuts.
 - Since shortcut-enabled lap times cannot be fairly compared with earlier stricter rules, **new PB records use `mattea-rally-v11-shortcut`**. Older PB data remain in localStorage but are not displayed in the new category.
 - **Best Lap** records the fastest valid lap regardless of the total race length.
 - **Best Race** records the fastest *completed* N-lap race, separately for each N.
@@ -108,10 +107,19 @@ Open http://localhost:8000. Opening `index.html` directly with `file://` may blo
 - Repeated small scenery meshes are GPU-instanced to reduce draw calls; decorative roadside items are non-blocking, so no invisible walls are introduced.
 - Previous PB records remain stored; `mattea-rally-v10` starts a fresh ranking because the course validation and car balance changed.
 
+## V1.5 — Always-visible visual roadbook / 常驻图形路书
+
+- The rally roadbook is **visual-only**: no speech synthesis, no voice toggle, and no sound is played for corner calls.
+- It appears immediately when the race starts, remains visible through straights and shortcuts, and displays the **next corner, severity, distance and following turn**.
+- Off-course driving leaves the next original-route pacenote on screen, labeled as a reference instead of hiding it.
+- The roadbook is now a fixed overlay outside the HUD so other HUD stacking contexts do not obscure it.
+- Versioned asset URLs mitigate stale browser caching. Verify **BUILD V1.5 VISIBLE ROADBOOK** on the menu footer.
+- All vehicle physics, shortcut timing rules and car handling remain unchanged.
+
 ## V1.4 — Co-driver pace notes and shortcut-friendly timing / 路书与自由抄近路
 
 - Generates 15–16 rally corner calls for each existing stage from the actual sampled course geometry; grades 1–6 indicate bend severity.
-- Animated on-screen arrow, corner grade, distance, upcoming corner and spoken Mandarin (browser speechSynthesis when available); **V** toggles spoken calls.
+- Animated on-screen arrow, corner grade, distance and upcoming corner; V1.5 replaces speech synthesis with a permanently visible graphical overlay.
 - Free cross-country shortcuts are allowed. The only timing gate is a positive start/finish crossing after a real excursion outside the start area, meaningful physical travel, and minimum lap duration. No waypoints or intermediate checkpoints.
 - Anti-farming checks reject repeated near-line crossings, reverse crossings and impossible short loops. Pace notes are advisory, not navigation or lap validity requirements.
 - Fresh local PB namespace because lap validation changed. No changes to the vehicle's acceleration, steering, grip, braking, drifting or nitro rules.
