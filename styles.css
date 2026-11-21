@@ -116,3 +116,13 @@
 @media(max-width:560px){
   .pace-panel{top:83px!important;width:218px;}
 }
+
+/* Start-grid sequence: countdown is visually separate from lap notifications. */
+.center-callout.start-countdown{top:29%;width:max-content;max-width:92vw;text-align:center;font-size:clamp(88px,17vw,176px);line-height:1.05;letter-spacing:-.035em;color:#ffd17e;text-shadow:0 8px 0 #59371e,0 16px 32px #02080dd9,0 0 70px #ffbb5577}
+.center-callout.start-countdown::before{content:'START SEQUENCE';display:block;font-size:clamp(10px,1.4vw,16px);line-height:2;letter-spacing:.35em;color:#e9f1e9;text-shadow:1px 2px 3px #07131d}
+.center-callout.start-countdown::after{content:'HOLD W TO REV  /  WAIT FOR GO';display:block;font-size:clamp(10px,1.25vw,14px);line-height:2.5;letter-spacing:.12em;color:#e6ecdf;text-shadow:1px 2px 3px #07131d}
+.center-callout.start-countdown.start-go{color:#8affcb;text-shadow:0 8px 0 #1c6550,0 16px 32px #02080dd9,0 0 75px #69ffbf77}
+.center-callout.start-countdown.start-go::after{content:'TIMER STARTED  /  DRIVE!'}
+.center-callout.start-countdown.start-pop{animation:rally-start-pop .38s cubic-bezier(.16,1.05,.32,1) both}
+@keyframes rally-start-pop{from{opacity:.3;transform:translate(-50%,16px) scale(1.23)}to{opacity:1;transform:translate(-50%,0) scale(1)}}
+@media(prefers-reduced-motion:reduce){.center-callout.start-countdown.start-pop{animation:none}}

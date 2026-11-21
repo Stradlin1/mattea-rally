@@ -10,6 +10,7 @@ import { createSurfaceTexture, addSkyAtmosphere, addCarContactShadow, createWeat
 import { addTracksideDetails } from './trackDetails.js';
 import { RallyAudio } from './audio.js';
 import { PaceGuide } from './paceGuide.js?v=1.5.0';
+import { createStartCountdown, advanceStartCountdown } from './startCountdown.js';
 
 const $ = (id) => document.getElementById(id);
 const clamp = (v,a,b) => Math.max(a,Math.min(b,v));
@@ -18,7 +19,7 @@ const TAU = Math.PI*2;
 const MAX_SPEED_KMH = 200;
 const MAX_SPEED_MS = MAX_SPEED_KMH / 3.6;
 const RECORD_VERSION = 'mattea-rally-v11-shortcut';
-const BUILD_LABEL = 'V1.5 VISIBLE ROADBOOK';
+const BUILD_LABEL = 'V1.5.1 GRID START';
 const WEATHER = [
   {id:'clear',name:'晴天',grip:1,fog:1},
   {id:'rain',name:'雨天',grip:.77,fog:.82},
@@ -26,7 +27,7 @@ const WEATHER = [
 ];
 const settings={car:'classic',track:'pine',weather:'clear',laps:3};
 const KEY=new Set();
-const state={mode:'menu',paused:false,elapsed:0,lapStart:0,lap:1,lapTimes:[],courseProgress:0,lapTracker:null,anyNewLapPB:false,car:null,model:null,camMode:0,drift:false,speed:0,slip:0,recordLap:null,recordRace:null,ghostSamples:[],ghostBest:[],lastSample:0,surface:'GRAVEL',weatherTime:0,calloutTime:0,toastTime:0,lastInvalidCrossTime:-99};
+const state={mode:'menu',paused:false,startCountdown:null,elapsed:0,lapStart:0,lap:1,lapTimes:[],courseProgress:0,lapTracker:null,anyNewLapPB:false,car:null,model:null,camMode:0,drift:false,speed:0,slip:0,recordLap:null,recordRace:null,ghostSamples:[],ghostBest:[],lastSample:0,surface:'GRAVEL',weatherTime:0,calloutTime:0,toastTime:0,lastInvalidCrossTime:-99};
 const canvas=$('game');
 const renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'});
 renderer.setPixelRatio(1);
@@ -360,15 +361,28 @@ function startRace(){
   state.recordLap=getRecord('best-lap',false);
   state.recordRace=getRecord('best-race',true);
   state.ghostBest=state.recordLap?.ghost||[];
+  state.startCountdown=createStartCountdown();
   state.mode='race';state.paused=false;menu.classList.add('hidden');results.classList.add('hidden');pauseEl.classList.add('hidden');hud.classList.remove('hidden');
   guide.start();
   guide.update({nearest:nearestRoad(state.car.x,state.car.z),speedKmh:0,active:true});
-  showCallout('GO!',1.4);KEY.clear();lastFrame=performance.now();updateHud();syncAudioControls();
+  showStartCue('3');KEY.clear();accumulator=0;hudAccumulator=0;lastFrame=performance.now();updateHud();syncAudioControls();
 }
-function showCallout(value,seconds=1){const el=$('center-callout');el.textContent=value;el.classList.remove('hidden');state.calloutTime=seconds;}
+function showCallout(value,seconds=1){
+  const el=$('center-callout');
+  el.classList.remove('start-countdown','start-go','start-pop');
+  el.textContent=value;el.classList.remove('hidden');state.calloutTime=seconds;
+}
+function showStartCue(cue){
+  const go=cue==='GO!';
+  showCallout(cue,go?1.35:0);
+  const el=$('center-callout');
+  el.classList.add('start-countdown');el.classList.toggle('start-go',go);
+  // Replay the pop animation for 3, 2, 1 and GO independently.
+  void el.offsetWidth;el.classList.add('start-pop');
+}
 function toast(value,seconds=2){$('toast').textContent=value;$('toast').classList.remove('hidden');state.toastTime=seconds;}
 function showMenu(){
-  state.mode='menu';state.paused=false;KEY.clear();guide.stop();syncAudioControls();hud.classList.add('hidden');pauseEl.classList.add('hidden');results.classList.add('hidden');menu.classList.remove('hidden');renderMenu();createWorld();
+  state.mode='menu';state.paused=false;state.startCountdown=null;KEY.clear();guide.stop();syncAudioControls();hud.classList.add('hidden');pauseEl.classList.add('hidden');results.classList.add('hidden');menu.classList.remove('hidden');renderMenu();createWorld();
 }
 function setPaused(value){
   if(state.mode!=='race')return;
@@ -410,6 +424,8 @@ function collides(nx,nz){
   return false;
 }
 function updatePhysics(dt){
+  // The start gate also guards against accidental direct physics calls.
+  if(!state.startCountdown?.ready)return;
   const c=state.car,config=currentCar(),weather=currentWeather();
   const gas=KEY.has('KeyW'),reverse=KEY.has('KeyS'),brake=KEY.has('Space');
   const shift=KEY.has('ShiftLeft')||KEY.has('ShiftRight');
@@ -586,7 +602,8 @@ function updateHud(){
   $('nitro-bar').style.width=nitro.amount+'%';
   $('nitro-shell').classList.toggle('firing',nitro.active);
   $('nitro-shell').classList.toggle('charging',nitro.charging);
-  const nitroMode=nitro.active?'BOOSTING':nitro.charging?'DRIFT +CHARGE':nitro.locked?'RECHARGING':nitro.amount>=NITRO.capacity?'FULL':'READY';
+  const waitingForGo=state.mode==='race'&&!state.startCountdown?.ready;
+  const nitroMode=waitingForGo?'GRID LOCKED':nitro.active?'BOOSTING':nitro.charging?'DRIFT +CHARGE':nitro.locked?'RECHARGING':nitro.amount>=NITRO.capacity?'FULL':'READY';
   $('nitro-mode').textContent=nitroMode;
   $('drift-indicator').textContent=state.drift?'DRIFT  // '+Math.round(state.slip)+'°':'GRIP';
   $('surface-indicator').textContent=state.surface;
@@ -600,8 +617,8 @@ function updateHud(){
   }else {delta.textContent='FREE ROUTE · '+Math.round(state.courseProgress*100)+'% VALID';delta.className='split-neutral';}
   const validity=$('lap-validity');
   const ready=!!state.lapTracker?.ready;
-  validity.textContent=ready?'LAP READY · CROSS THE FINISH':'SHORTCUTS ALLOWED · EXPLORE THE STAGE';
-  validity.classList.toggle('ready',ready);
+  validity.textContent=waitingForGo?'WAIT FOR GO · ENGINE READY':ready?'LAP READY · CROSS THE FINISH':'SHORTCUTS ALLOWED · EXPLORE THE STAGE';
+  validity.classList.toggle('ready',ready&&!waitingForGo);
   if(state.mode==='race'&&state.car&&!state.paused){
     guide.update({nearest:nearestRoad(state.car.x,state.car.z),speedKmh:state.speed,active:true});
   }
@@ -654,8 +671,15 @@ function loop(now){
   const realDt=clamp((now-lastFrame)/1000,0,.06);lastFrame=now;
   const dt=realDt;const active=state.mode==='race'&&!state.paused;
   if(active){
-    accumulator=Math.min(accumulator+dt,.1);
-    while(accumulator>=1/90){if(state.mode==='race')updatePhysics(1/90);accumulator-=1/90;}
+    let driveDt=dt;
+    if(state.startCountdown&&!state.startCountdown.ready){
+      const gate=advanceStartCountdown(state.startCountdown,dt);
+      if(gate.cue)showStartCue(gate.cue);
+      driveDt=gate.driveDt;
+    }
+    // Before GO no physics, nitro consumption, ghost recording or race clock.
+    accumulator=Math.min(accumulator+driveDt,.1);
+    while(accumulator>=1/90){if(state.mode==='race'&&state.startCountdown?.ready)updatePhysics(1/90);accumulator-=1/90;}
     updateDust(dt);
     updateNitroVisuals();
     if(state.calloutTime>0){state.calloutTime-=dt;if(state.calloutTime<=0)$('center-callout').classList.add('hidden');}
