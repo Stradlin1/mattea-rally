@@ -286,28 +286,8 @@ export function populateScenery(world,{track,roadSamples,terrainY,nearestRoad,ha
     checkpointBanner(.39,'RED CANYON');
   }
 
-  // Pale, faceted distant peaks; three color variants with snowy caps.
-  const peaksGeo=new THREE.ConeGeometry(29,1,5);
-  const ridgeMat=mat(theme.cliff),capMat=mat(theme.cap);
-  for(let k=0;k<36;k++){
-    const a=k/36*TAU,dist=466+rnd(k,93)*73;
-    const x=Math.cos(a)*dist,z=Math.sin(a)*dist;
-    const height=74+rnd(k,42)*130,base=terrainY(x,z)-26;
-    const peak=mesh(scene,peaksGeo,ridgeMat,[x,base+height*.40,z]);
-    peak.scale.set(1.10+rnd(k,35)*.74,height,1.10+rnd(k,45)*.74);
-    if(snowy||k%4===0){
-      const cap=mesh(scene,new THREE.ConeGeometry(18,22,5),capMat,
-        [x,base+height*.82,z]);cap.rotation.y=rnd(k,6)*TAU;
-    }
-  }
-  const clouds=[];
-  for(let i=0;i<84;i++){
-    const a=rnd(i,57)*TAU,d=180+rnd(i,48)*275;
-    const x=Math.cos(a)*d,z=Math.sin(a)*d;
-    clouds.push({x,y:98+rnd(i,19)*55,z,s:5+rnd(i,8)*5});
-  }
-  // Mist banks only: no particles over the steering view.
-  instance(new THREE.IcosahedronGeometry(1,0),theme.cloud,clouds);
+  // Distant ridges and soft cloud banks are drawn as one batched backdrop
+  // in environmentArt.js instead of separate cone peaks and hard cloud rocks.
 
   return scene;
 }

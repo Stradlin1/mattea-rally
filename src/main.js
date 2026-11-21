@@ -4,8 +4,10 @@ import { createCockpit } from './cockpit.js';
 import { freshNitro, stepNitro, NITRO } from './nitro.js';
 import { CARS } from './cars.js';
 import { createLapTracker, updateLapTracker } from './lap.js';
-import { populateScenery } from './sceneryV2.js';
-import { createRallyVehicle } from './vehicleVisuals.js';
+import { populateScenery } from './sceneryV2.js?v=1.6.0';
+import { addLandscapeBackdrop } from './environmentArt.js?v=1.6.0';
+import { addRoadSurfaceArt } from './roadArt.js?v=1.6.0';
+import { createRallyVehicle } from './vehicleVisuals.js?v=1.6.0';
 import { createSurfaceTexture, addSkyAtmosphere, addCarContactShadow, createWeatherParticles } from './sceneArt.js';
 import { addTracksideDetails } from './trackDetails.js';
 import { RallyAudio } from './audio.js';
@@ -19,7 +21,7 @@ const TAU = Math.PI*2;
 const MAX_SPEED_KMH = 200;
 const MAX_SPEED_MS = MAX_SPEED_KMH / 3.6;
 const RECORD_VERSION = 'mattea-rally-v11-shortcut';
-const BUILD_LABEL = 'V1.5.1 GRID START';
+const BUILD_LABEL = 'V1.6.0 VISUAL PASS';
 const WEATHER = [
   {id:'clear',name:'晴天',grip:1,fog:1},
   {id:'rain',name:'雨天',grip:.77,fog:.82},
@@ -48,7 +50,7 @@ let exhaustFlames=[];
 const dust=[];
 const decor=[];
 let raceTrack=null,roadSamples=[],terrainMesh=null,roadMesh=null,carGroup=null,camTarget=new THREE.Vector3();
-let carShadow=null,weatherVisual=null;
+let carShadow=null,weatherVisual=null,brakeGlow=null;
 const hud=$('hud'),menu=$('menu'),pauseEl=$('pause'),results=$('results');
 const tmpVec=new THREE.Vector3();
 const mctx=$('minimap').getContext('2d');
@@ -138,7 +140,7 @@ document.querySelectorAll('.lap-preset').forEach(b=>b.addEventListener('click',(
 $('laps-input').addEventListener('input',(event)=>{const n=Number(event.target.value);if(Number.isInteger(n)&&n>=1&&n<=99){settings.laps=n;renderMenu();}});
 function clearWorld(){
   while(world.children.length){const item=world.children[0];world.remove(item);item.traverse(obj=>{obj.geometry?.dispose();if(obj.material){const mats=Array.isArray(obj.material)?obj.material:[obj.material];mats.forEach(m=>{m.map?.dispose();m.dispose();});}});}
-  dust.length=0;decor.length=0;wheelMeshes.length=0;exhaustFlames=[];carGroup=null;carShadow=null;weatherVisual=null;
+  dust.length=0;decor.length=0;wheelMeshes.length=0;exhaustFlames=[];carGroup=null;carShadow=null;weatherVisual=null;brakeGlow=null;
 }
 function hash(x,z,s){const f=Math.sin(x*127.1+z*311.7+s*74.7)*43758.5453;return f-Math.floor(f);}
 function hills(x,z,seed){return Math.sin(x*.011+seed)*Math.cos(z*.013-seed)*4.8+Math.sin(x*.032+z*.016+seed)*1.65+Math.cos(z*.041-x*.027)*.8;}
@@ -307,19 +309,23 @@ function buildCar(){
   const visual=createRallyVehicle(carGroup,config);
   wheelMeshes.push(...visual.wheels);
   exhaustFlames=visual.exhaustFlames;
+  brakeGlow=visual.brakeGlow;
 }
 function createWorld(){
   const tr=currentTrack(),weather=currentWeather();
-  clearWorld();buildCurve();
+  clearWorld();dustMaterial=createDustMaterial();buildCurve();
   addSkyAtmosphere(world,tr.id,weather.id);
+  addLandscapeBackdrop(world,{track:tr,weather:weather.id});
   buildTerrain();createRoad();
+  addRoadSurfaceArt(world,{track:tr,roadSamples,terrainY,weather:weather.id});
   addTracksideDetails(world,{track:tr,roadSamples,terrainY,weather:weather.id});
   buildCar();
   carShadow=addCarContactShadow(world);
   weatherVisual=createWeatherParticles(world,tr.id,weather.id);
   scene.background=new THREE.Color(tr.sky);
   audio.setStage(tr.id);
-  scene.fog=new THREE.FogExp2(tr.sky,weather.id==='fog'?.017:weather.id==='rain'?.0075:.0040);
+  // Clear-day visibility reveals distant landscape; rain and dense fog still mute it.
+  scene.fog=new THREE.FogExp2(tr.sky,weather.id==='fog'?.014:weather.id==='rain'?.0062:.0028);
   // Stage-colored lighting. Only rendering parameters change, not surface grip.
   const desert=tr.id==='desert',snow=tr.id==='snow',rain=weather.id==='rain';
   hemi.color.setHex(desert?0xffe3c0:snow?0xe3efff:0xd3edf4);
@@ -526,7 +532,9 @@ function updatePhysics(dt){
   cockpitView.update(c.turn*config.steer*(.39/(1+state.speed*.0016)),state.speed,config.color);
   // Only the handbrake slide earns rapid recharge; ordinary driving regenerates slowly.
   // updateNitroVisuals uses the same state so flames cannot continue after depletion.
-  if(state.drift&&Math.random()<dt*45)spawnDust(c.x-newFx*2,c.z-newFz*2,c.y,offroad);
+  if((state.drift&&Math.random()<dt*42)||
+    (state.speed>95&&Math.random()<dt*(offroad?22:9)))
+    spawnDust(c.x-newFx*2,c.z-newFz*2,c.y,offroad);
   state.elapsed+=dt;
   if(state.elapsed-state.lastSample>.075){state.ghostSamples.push({t:state.elapsed-state.lapStart,x:c.x,z:c.z,yaw:c.yaw});state.lastSample=state.elapsed;}
   const lapUpdate=updateLapTracker(state.lapTracker,oldx,oldz,c.x,c.z,
@@ -538,16 +546,43 @@ function updatePhysics(dt){
     toast('LAP NOT READY · DRIVE FARTHER FROM START',1.3);
   }
 }
-const dustGeo=new THREE.BoxGeometry(.62,.62,.62);
-const dustMat=new THREE.MeshBasicMaterial({color:0xd1bc91,transparent:true,opacity:.65,depthWrite:false});
+// Feathered stage-tinted dust replaces opaque cubic smoke; one small texture
+// is reused by all particles in the current world.
+let dustMaterial=null;
+function createDustMaterial(){
+  const canvas=document.createElement('canvas');
+  canvas.width=canvas.height=96;
+  const ctx=canvas.getContext('2d');
+  const fade=ctx.createRadialGradient(48,48,6,48,48,47);
+  fade.addColorStop(0,'rgba(255,255,255,.80)');
+  fade.addColorStop(.44,'rgba(255,255,255,.57)');
+  fade.addColorStop(.78,'rgba(255,255,255,.18)');
+  fade.addColorStop(1,'rgba(255,255,255,0)');
+  ctx.fillStyle=fade;ctx.fillRect(0,0,96,96);
+  const texture=new THREE.CanvasTexture(canvas);
+  texture.colorSpace=THREE.SRGBColorSpace;
+  return new THREE.SpriteMaterial({
+    map:texture,color:0xd3c7ad,transparent:true,
+    opacity:.52,depthWrite:false,fog:true
+  });
+}
 function spawnDust(x,z,y,offroad){
-  if(dust.length>110)return;
-  const puff=new THREE.Mesh(dustGeo,dustMat.clone());puff.position.set(x+(Math.random()-.5)*2,y+.4,z+(Math.random()-.5)*2);puff.scale.setScalar(offroad?1.6:1);world.add(puff);
-  dust.push({mesh:puff,t:0,max:.5+Math.random()*.6});
+  if(!dustMaterial||dust.length>=110)return;
+  const puff=new THREE.Sprite(dustMaterial.clone());
+  puff.material.color.setHex(settings.weather==='rain'?0xb0c4c9:
+    settings.track==='snow'?0xe6f1f4:settings.track==='desert'?0xe4b48c:0xc2b396);
+  puff.position.set(x+(Math.random()-.5)*1.7,y+.65,z+(Math.random()-.5)*1.7);
+  const size=offroad?3.6:2.7;
+  puff.scale.set(size,size*.77,1);world.add(puff);
+  dust.push({mesh:puff,t:0,max:.55+Math.random()*.55,dx:(Math.random()-.5)*1.2,dz:(Math.random()-.5)*1.2});
 }
 function updateDust(dt){
   for(let i=dust.length-1;i>=0;i--){
-    const p=dust[i];p.t+=dt;p.mesh.position.y+=dt*.9;p.mesh.scale.multiplyScalar(1+dt*.5);p.mesh.material.opacity=clamp(.5*(1-p.t/p.max),0,.5);
+    const p=dust[i];p.t+=dt;
+    p.mesh.position.y+=dt*.8;
+    p.mesh.position.x+=p.dx*dt;p.mesh.position.z+=p.dz*dt;
+    p.mesh.scale.multiplyScalar(1+dt*.72);
+    p.mesh.material.opacity=clamp(.54*(1-p.t/p.max),0,.54);
     if(p.t>p.max){world.remove(p.mesh);p.mesh.material.dispose();dust.splice(i,1);}
   }
 }
@@ -587,6 +622,21 @@ function updateNitroVisuals(){
       flame.outer.material.opacity=.70+.16*Math.sin(state.elapsed*39+flame.side);
       flame.core.material.opacity=.85;
     }
+  }
+}
+function updateVehicleVisuals(dt){
+  if(!state.car||!carGroup)return;
+  const active=state.mode==='race'&&!state.paused&&state.startCountdown?.ready;
+  if(active){
+    const c=state.car;
+    const longitudinal=c.vx*(-Math.sin(c.yaw))+c.vz*(-Math.cos(c.yaw));
+    const roll=longitudinal*dt/.72;
+    // Purely graphical tyre roll: wheel pivots keep the existing front steering.
+    for(const wheel of wheelMeshes)wheel.mesh.rotation.x=(wheel.mesh.rotation.x+roll)%TAU;
+  }
+  if(brakeGlow){
+    const stop=state.mode==='race'&&!state.paused&&KEY.has('Space');
+    brakeGlow.opacity=lerp(brakeGlow.opacity,stop?.96:.16,clamp(dt*14,0,1));
   }
 }
 function updateHud(){
@@ -688,6 +738,7 @@ function loop(now){
   }else if(state.mode==='menu'&&state.car){state.car.yaw+=dt*.13;syncCarModel();}
   else if(exhaustFlames.length){exhaustFlames.forEach(flame=>flame.group.visible=false);}
   updateCamera(dt);
+  updateVehicleVisuals(dt);
   weatherVisual?.update(state.car,dt);
   audio.update({
     mode:state.mode,

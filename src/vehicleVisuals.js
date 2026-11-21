@@ -73,6 +73,9 @@ export function createRallyVehicle(group, config) {
   const accent=matte(isCoupe?0xf0ce68:isAwd?0xd3f3fb:isBuggy?0xdef0c5:0xffdfac);
   const shade=matte(new THREE.Color(config.color).multiplyScalar(.65));
   const wheels=[],exhaustFlames=[];
+  const brakeGlow=new THREE.MeshBasicMaterial({
+    color:0xff6157,transparent:true,opacity:.16,depthWrite:false
+  });
 
   // Chassis, body shell, bonnet, rear deck and pronounced polygonal bumpers.
   box(group,[w-.24,.32,length-.10],[0,.59,0],black);
@@ -120,6 +123,9 @@ export function createRallyVehicle(group, config) {
   box(group,[.54,.035,1.30],[0,1.563,-1.72],pale);
   box(group,[.14,.040,1.25],[0,1.586,-1.72],shade);
   box(group,[.49,.025,.65],[0,1.565,1.95],pale);
+  // Stamped bonnet vents: depth and shape, without replacing the preferred body.
+  for(const side of [-1,1])for(let i=0;i<4;i++)
+    box(group,[.43,.025,.075],[side*.72,1.584,-1.28-i*.17],darkGlass);
 
   // Front face / rear face with actual lamp clusters and grille detailing.
   for(const side of [-1,1]){
@@ -127,6 +133,7 @@ export function createRallyVehicle(group, config) {
     box(group,[.59,.27,.095],[x,1.15,-length*.5-.063],lamps);
     box(group,[.67,.09,.107],[x,.96,-length*.5-.067],accent);
     box(group,[.58,.27,.10],[x,1.10,length*.5+.07],brakeLamps);
+    box(group,[.55,.23,.025],[x,1.11,length*.5+.132],brakeGlow);
     box(group,[.56,.055,.11],[x,.90,length*.5+.073],darkGlass);
     box(group,[.08,.18,.09],[side*(w*.5-.90),1.15,-length*.5-.12],steel);
   }
@@ -150,6 +157,12 @@ export function createRallyVehicle(group, config) {
       }
       wheels.push({mesh:pivot,front:z<0,side});
     }
+  }
+
+  // Deep rally mud flaps track the body without influencing wheel collisions.
+  for(const side of [-1,1])for(const z of [-1.57,1.57]){
+    box(group,[.50,.55,.08],[side*(w*.5+.09),.44,z+.59],black);
+    box(group,[.50,.07,.09],[side*(w*.5+.09),.18,z+.59],shade);
   }
 
   // Lightweight procedural door number decals, readable from both sides.
@@ -214,5 +227,5 @@ export function createRallyVehicle(group, config) {
     const core=part(jet,new THREE.ConeGeometry(.13,1.13,7),innerFlame,[0,0,.47],[Math.PI/2,0,0]);
     exhaustFlames.push({group:jet,outer,core,side});
   }
-  return {wheels,exhaustFlames};
+  return {wheels,exhaustFlames,brakeGlow};
 }

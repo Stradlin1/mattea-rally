@@ -20,6 +20,14 @@ python -m http.server 8000
 
 Open http://localhost:8000. Opening `index.html` directly with `file://` may block ES modules.
 
+## V1.6 — Scenic stages and vehicle presentation / 场景美术增强
+
+- Replaced the isolated cone peaks and blocky cloud rocks with **two faceted mountain ranges and feathered atmospheric clouds**, each with a distinct forest, alpine, or desert palette.
+- Added soft road-wear decals, compact gravel at road edges, and rainy-surface sheen. Weather remains a rendering choice, not a new collision or track rule.
+- The existing compact car body gains subtle hood vents, mud flaps, rotating wheels and responsive brake-light overlays.
+- High-speed gravel and drifting now create stage-colored, soft-edged dust plumes.
+- **Driving physics, 200 km/h cap, nitro, road geometry, lap validation, personal-best storage and 3-2-1 start gate are unchanged.** The update deliberately avoids costly full-scene shadow maps or post-processing.
+
 ## Controls / 操作
 
 | Key | Action |
