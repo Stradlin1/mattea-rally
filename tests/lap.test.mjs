@@ -71,11 +71,20 @@ test('an implausibly fast loop cannot count',()=>{
 });
 test('a counted lap resets excursion and travel guards',()=>{
   const d=driver();
-  traverse(d,N-8,N*2+8);
+  let resetObserved=false;
+  for(let i=N-8;i<=N*2+8;i++){
+    const p=sampled(i);
+    const result=step(d,p.x,p.z);
+    if(result.completed){
+      // Inspect the state at the finish crossing, before subsequent motion.
+      assert.equal(d.tracker.ready,false);
+      assert.equal(d.tracker.traveled,0);
+      assert.equal(d.tracker.farExcursion,false);
+      resetObserved=true;
+    }
+  }
   assert.equal(d.completed,1);
-  assert.equal(d.tracker.ready,false);
-  assert.equal(d.tracker.traveled,0);
-  assert.equal(d.tracker.farExcursion,false);
+  assert.ok(resetObserved);
   for(let i=0;i<30;i++)step(d,190,i%2?12:-12,.25);
   assert.equal(d.completed,1);
 });
